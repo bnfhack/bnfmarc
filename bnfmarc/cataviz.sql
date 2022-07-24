@@ -32,4 +32,5 @@ CREATE INDEX doc_lang ON doc(year, lang);
 CREATE INDEX doc_type ON doc(type, year);
 CREATE INDEX doc_translation ON doc(year, translation);
 CREATE INDEX doc_pages ON doc(year, pages);
+CREATE INDEX doc_format ON doc(year, format, pages);
 CREATE INDEX doc_debug ON doc(debug, year);

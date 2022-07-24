@@ -47,43 +47,43 @@ def walk(marc_dir):
 
 def desc(r, doc_values):
     """Get physical informations. Let clement() work after for more precise info on folio """
-    if (r['215'] == None):
-        return
-    format = None
-    while (r['215']['a'] != None): # pages
-        folio = r['215']['a']
-        found = re.search(r"(\d+)[ ]*p\.", r['215']['a'], re.IGNORECASE)
-        if (found != None):
-            pages = int(found.group(1))
-            if (pages > 9999):
-                 pages = 1000 # error 
-            doc_values['pages'] = pages
-            break
-        found = re.search(r"pièce|placard", r['215']['a'], re.IGNORECASE)
+    desc = None
+    if (r['215'] != None):
+        desc = str(r['215'])
+    else:
+        desc = str(r['210'])
+
+    found = re.search(r"(\d+)[ ]*p\.", desc, re.IGNORECASE)
+    if (found != None):
+        pages = int(found.group(1))
+        if (pages > 9999):
+            pages = 1000 # error 
+        doc_values['pages'] = pages
+    if (doc_values['pages'] == None):
+        found = re.search(r"pièce|placard", desc, re.IGNORECASE)
         if (found != None):
             doc_values['pages'] = 1
-            break
-        # doc_values['debug'] = str(r['215'])
-        break
-    if (r['215']['d'] != None):
-        format = r['215']['d']
-    if (format == None):
-        return
-
-    found = re.search(r"In[ \-]*(\d+)", format, re.IGNORECASE)
+    # format
+    # space error: 12 juin 1782, in-fol.
+    found = re.search(r"In[ \-]*(\d+)", desc, re.IGNORECASE)
     if (found != None):
         doc_values['format'] = found.group(1)
         return
-    found = re.search(r"in-fol", format, re.IGNORECASE)
+    found = re.search(r"in-fol", desc, re.IGNORECASE)
     if (found != None):
         doc_values['format'] = 2
         return
-    found = re.search(r"gr[\. ]+fol[\. ]?", format, re.IGNORECASE)
+    found = re.search(r"gr[\. ]+fol[\. ]?", desc, re.IGNORECASE)
     if (found != None):
         doc_values['format'] = 1
         # placard, affiche ? ou presse ?
         return
-    found = re.search(r"(\d+) *cm", format, re.IGNORECASE)
+    # 8°
+    found = re.search(r"(\d+)°", desc, re.IGNORECASE)
+    if (found != None):
+        doc_values['format'] = found.group(1)
+        return
+    found = re.search(r"(\d+) *cm", desc, re.IGNORECASE)
     if (found != None):
         cm = int(found.group(1))
         if (cm < 10):
@@ -135,7 +135,6 @@ def type(r, doc_values):
         doc_values['type'] == 'ntm'
 
 def lang(r, doc_values):
-    doc_values['lang'] = 'fre'
     if (r['101'] == None or r['101']['a'] == None):
         # http://catalogue.bnf.fr/ark:/12148/cb43650693f
         return
@@ -174,7 +173,7 @@ def year(r, doc_values):
     doc_values['year_cert'] = None
     str = r['100'].value()[9:13]
     year = str_year(str)
-    if (year != None):
+    if (year != None and year > 1500):
         doc_values['year_cert'] = 1
         doc_values['year'] = year
         return
