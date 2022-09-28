@@ -168,41 +168,81 @@ def url(r, doc_values):
     if (r['856'] != None and r['856']['u']):
         doc_values['gallica'] = r['856']['u']
 
+def publisher(r, doc_values):
+    f = None
+    if (r['214'] != None):
+        f = r['214']
+    elif (r['210'] != None):
+        f = r['210']
+    else:
+        return
+    if (f['c'] != None):
+        doc_values['publisher'] = f['c']
+        return
+    elif (f['r'] == None):
+        # What in this field ?
+        return
+
+
+def place(r, doc_values):
+    if (r['620'] != None and r['620']['d'] != None):
+        doc_values['place'] = r['620']['d']
+        return
+    f = None
+    if (r['214'] != None):
+        f = r['214']
+    elif (r['210'] != None):
+        f = r['210']
+    else:
+        return
+    if (f['a'] != None):
+        doc_values['place'] = f['a']
+        return
+    elif (f['r'] == None):
+        # What in this field ?
+        return
+    # An editorial place could be parsed here, but most of work have been done by BnF
+    return
+    val = f['r']
+    val = re.sub(r'[^\[\]\(\)]+|^[AÀ] ', 'a', val)
+
+def country(r, doc_values):
+    if (r['102'] != None and r['102']['a'] != None):
+        doc_values['country'] = r['102']['a']
+    # most of old records have no national bib country
+    # post work may be done 
+
+
 def year(r, doc_values):
-    doc_values['year'] = None
-    doc_values['year_cert'] = None
     str = r['100'].value()[9:13]
     year = str_year(str)
-    if (year != None and year > 1500):
-        doc_values['year_cert'] = 1
+    if (year != None and year > 1400 and year < 2030):
         doc_values['year'] = year
         return
-    while True:
-        if (r['210'] == None):
-            break
-        if (r['210']['d'] == None):
-            break
-        # find [1810]
-        found = re.search(r'(\-?[\d\?\.]+)', r['210']['d'])
-        if (found == None):
-            break
-        str = found.group(1)
-        year = str_year(str)
-        if (year == None):
-            break
-        doc_values['year_cert'] = 1
-        doc_values['year'] = year
+    f = None
+    if (r['214'] != None):
+        f = r['214']
+    elif (r['210'] != None):
+        f = r['210']
+    else: # no other field for date
         return
-    # get date from author?
-    """
-    while True:
-        if (r['700'] == None):
-            break
-        if (r['700']['f'] == None):
-            break
-        found = re.search(r'\-([\d\?\.]+)', r['700']['f'])
-    """
-    return
+    val = None
+    if (f['d'] != None):
+        val = f['d']
+    elif (f['r'] != None):
+        val = f['r']
+    else:
+        return
+    # find [1810]
+    found = re.search(r'([\d\?\.]{4})', val)
+    if (found == None):
+        return
+    str = found.group(1)
+    year = str_year(str)
+    if (year == None):
+        return
+    doc_values['year'] = year
+    # do not serche date from author (reeditions)
 
 def str_year(str):
     if (str == None):
@@ -228,6 +268,7 @@ def docs(marc_file):
         'title': '',
         'translation': None,
         'year': None,
+        'country': None,
         'place': None,
         'publisher': None,
         'clement_letter': None,
@@ -256,6 +297,8 @@ def docs(marc_file):
             desc(r, doc_values) # before clement
             title(r, doc_values)
             lang(r, doc_values)
+            place(r, doc_values)
+            publisher(r, doc_values)
             cur.execute(doc_sql, doc_values)
 
 
