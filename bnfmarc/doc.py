@@ -13,34 +13,22 @@ import os
 import re
 import sqlite3
 import sys
+# local
+import bnfmarc
 
-
-# shared sqlite3 objects
+# shared sqlite3 connexion
 con = None
-
-def connect(cataviz_db):
-    "Connect database and create tables"
-    global con
-    if os.path.isfile(cataviz_db):
-        os.remove(cataviz_db)
-    con = sqlite3.connect(cataviz_db)
-    cur = con.cursor()
-    sql_file = os.path.join(os.path.dirname(__file__), 'cataviz.sql')
-    with open(sql_file, "r", encoding='utf-8') as h:
-        sql = h.read()
-    cur.executescript(sql)
-
 
 
 def walk(marc_dir):
     """Parse marc files"""
     if not os.path.isdir(marc_dir):
-        raise Exception("Dir not found for marc data:\"" + marc_dir + "\"")
     for root, dirs, files in os.walk(marc_dir):
         for name in files:
             marc_file = os.path.join(root, name)
             if (name.startswith('P174_') or name.startswith('P1187_')): 
-                # P1187_, <= 1970, P174_ > 1970 
+                # P1187_, <= 19
+                # , P174_ > 1970 
                 docs(marc_file)
                 continue
     con.commit()
@@ -260,7 +248,6 @@ def docs(marc_file):
     file = os.path.basename(marc_file)
     doc_values = {
         'file': None,
-        # 'marc': None,
         'url': '',
         'gallica': None,
         'type': None,
@@ -304,14 +291,16 @@ def docs(marc_file):
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description='Crawl a folder of marc file to test pymarc',
+        description='Crawl a folder of marc file to generate an sqlite base',
         formatter_class=argparse.RawTextHelpFormatter
     )
+    parser.add_argument('marc_dir', nargs=1,
+    help='Directory to find MARC records')
     parser.add_argument('cataviz_db', nargs=1,
     help='Sqlite database to generate')
 
     args = parser.parse_args()
-    connect(args.cataviz_db[0])
+    con = bnfmarc.connect(args.cataviz_db[0])
     marc_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data/')
     walk(marc_dir)
 

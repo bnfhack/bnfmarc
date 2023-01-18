@@ -1,4 +1,8 @@
+__pycache__/
+*.py[cod]
+*$py.class
 
+data/
 *.UTF8
 bnfmarc/maddison_gdppc_FRA.csv
 bnfmarc/maddison_gdppc_FRA.xlsx
