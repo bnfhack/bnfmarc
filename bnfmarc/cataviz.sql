@@ -5,9 +5,11 @@ PRAGMA foreign_keys = OFF;
 
 CREATE TABLE doc (
     -- UniMARC BnF documents records
+    -- doc https://www.bnf.fr/sites/default/files/2019-01/Unimarc%2B%28B%29_201901_conversion.pdf
+    -- …-1969
     -- CGI/P1187* https://api.bnf.fr/notices-bibliographiques-des-catalogues-retroconvertis-imprimes-et-audiovisuel
     -- ftp://PRODUIT_RETRO:b9rZ2As7@pef.bnf.fr/PRODUIT_RETRO/CGI/CGI_2021/CGI_2021_Intermarc_UTF8/P1187*.UTF8
-    --
+    -- 1970-2020
     -- BNF-Livres/P174* https://api.bnf.fr/notices-bibliographiques-de-la-bibliographie-nationale-francaise
     -- ftp://PRODUIT_RETRO:b9rZ2As7@pef.bnf.fr/PRODUIT_RETRO/BNF-Livres/BNF-Livres_2021/BNF-Livres_2021_Unimarc_UTF8/P174*.UTF8
     file        TEXT NOT NULL, -- source File
@@ -64,13 +66,38 @@ CREATE TABLE doc_pers (
 
 CREATE TABLE pers (
     -- UniMARC BnF autorités
+    -- doc https://www.bnf.fr/sites/default/files/2019-01/UNIMARC%28A%29_2018_conversion.pdf
     -- https://api.bnf.fr/notices-dautorite-personnes-collectivites-oeuvres-lieux-noms-communs-de-bnf-catalogue-general
     -- ftp://PRODUIT_RETRO:b9rZ2As7@pef.bnf.fr/PRODUIT_RETRO/Pcts/Pcts_2021/Pcts_2021_Unimarc_UTF8/P1486_*.UTF8
-    file        TEXT NOT NULL, -- source File
-    url         TEXT NOT NULL, -- url catalog, 003
-    nb          TEXT NOT NULL, -- doc700$3
-    surname     TEXT NOT NULL, -- auth200$a
-    forename    TEXT NOT NULL, -- auth200$b
+    file        TEXT,          -- source File from auth marc, or NULL from doc
+    url         TEXT,          -- url catalog, auth#003, or NULL
+    nb          INT NOT NULL UNIQUE, -- doc700$3, auth#003
+    name        TEXT NOT NULL, -- auth200$a
+    given       TEXT,          -- auth200$b
+    gender      INTEGER,       -- auth120$b inferred from given
+    role        TEXT,          -- auth200$c
+    deform      TEXT NOT NULL, -- lower case with no accents, for search
+
+
+    birthyear   INTEGER,       -- birth year: auth200$f, auth103$a
+    deathyear   INTEGER,       -- death year: auth200$f, auth103$a
+    age         INTEGER,       -- age at death (for demography)
+    birthplace  TEXT,          -- birth place
+    deathplace  TEXT,          -- death place
+
+    agedec      INTEGER,       -- âge à la mort, décade
+    docs        INTEGER,       -- doc count as first author
+    anthum      INTEGER,       -- doc count before death
+    posthum     INTEGER,       -- doc count after death
+    lang        TEXT,          -- main language for docs
+    doc1        INTEGER,       -- date of first doc
+    age1        INTEGER,       -- age at first doc
+
     id          INTEGER,       -- rowid auto
     PRIMARY KEY(id ASC)
 );
+
+CREATE INDEX pers_given ON pers(given);
+CREATE INDEX pers_name ON pers(name);
+CREATE INDEX pers_deform ON pers(deform);
+

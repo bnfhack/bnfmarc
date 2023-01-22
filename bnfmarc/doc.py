@@ -11,6 +11,7 @@ import logging
 import pymarc
 import os
 import re
+import shutil
 import sqlite3
 import sys
 # local
@@ -18,20 +19,9 @@ import bnfmarc
 
 # shared sqlite3 connexion
 con = None
+cur_sel = None
 
 
-def walk(marc_dir):
-    """Parse marc files"""
-    if not os.path.isdir(marc_dir):
-    for root, dirs, files in os.walk(marc_dir):
-        for name in files:
-            marc_file = os.path.join(root, name)
-            if (name.startswith('P174_') or name.startswith('P1187_')): 
-                # P1187_, <= 19
-                # , P174_ > 1970 
-                docs(marc_file)
-                continue
-    con.commit()
 
 def desc(r, doc_values):
     """Get physical informations. Let clement() work after for more precise info on folio """
@@ -100,6 +90,24 @@ RES FOL-T29-4
         if (found == None):
             # never arrive, all docs from FR(ench) BnF
             return None
+
+def pers(r, doc_values):
+    global cur_sel
+    for f in r.get_fields('700'):
+        if (f['3'] is None):
+            # ~10 cases found
+            continue
+        nb = int(f['3'])
+        sql = 'SELECT id FROM pers WHERE nb = ?'
+        rows = cur_sel.execute(sql, (nb,)).fetchall()
+        count = len(rows)
+        if count > 1: # impossible index UNIQUE, but who knows ?
+            continue
+        # no authority record for this author
+        if count == 0:
+            print("0 — " + str(f).strip())
+            continue
+
 
 
 def type(r, doc_values):
@@ -276,7 +284,7 @@ def docs(marc_file):
             for key in doc_values:
                 doc_values[key] = None
             doc_values['file'] = file
-            doc_values['url'] = ''
+            doc_values['url'] = str(r['003'].value().strip())
             # doc_values['marc'] = str(r)
             year(r, doc_values)
             type(r, doc_values)
@@ -286,23 +294,35 @@ def docs(marc_file):
             lang(r, doc_values)
             place(r, doc_values)
             publisher(r, doc_values)
-            cur.execute(doc_sql, doc_values)
+            pers(r, doc_values)
+            # write doc record
+            # cur.execute(doc_sql, doc_values)
 
 
 def main() -> int:
+    global con, cur_sel
     parser = argparse.ArgumentParser(
         description='Crawl a folder of marc file to generate an sqlite base',
         formatter_class=argparse.RawTextHelpFormatter
     )
-    parser.add_argument('marc_dir', nargs=1,
-    help='Directory to find MARC records')
     parser.add_argument('cataviz_db', nargs=1,
     help='Sqlite database to generate')
 
     args = parser.parse_args()
-    con = bnfmarc.connect(args.cataviz_db[0])
+    # tmp, copy file to keep pers
+
+    db_file = args.cataviz_db[0] + '2'
+    shutil.copyfile(args.cataviz_db[0], db_file)
+    con = bnfmarc.connect(db_file)
+    cur_sel = con.cursor()
     marc_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data/')
-    walk(marc_dir)
+
+    # if (name.startswith('P174_') or name.startswith('P1187_')): 
+    for marc_file in glob.glob(os.path.join(marc_dir, "P174_*.UTF8")):
+        docs(marc_file)
+    for marc_file in glob.glob(os.path.join(marc_dir, "P1187_*.UTF8")):
+        docs(marc_file)
+    con.commit()
 
 if __name__ == '__main__':
     sys.exit(main())
