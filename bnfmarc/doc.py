@@ -19,8 +19,11 @@ import bnfmarc
 
 # shared sqlite3 connexion
 con = None
-cur_sel = None
-
+cur_pers = None
+cur_writes = None
+pers_nb = {}
+writes_cols = ['doc', 'pers', 'role']
+writes_sql = "INSERT INTO doc_pers (" + ", ".join(writes_cols) + ") VALUES (:" + ", :".join(writes_cols) +")"
 
 
 def desc(r, doc_values):
@@ -91,23 +94,36 @@ RES FOL-T29-4
             # never arrive, all docs from FR(ench) BnF
             return None
 
-def pers(r, doc_values):
-    global cur_sel
+def pers(r, doc_id):
+    """Write link between doc to pers author"""
+    global pers_nb, cur_pers, writes_sql, cur_writes
     for f in r.get_fields('700'):
         if (f['3'] is None):
             # ~10 cases found
             continue
         nb = int(f['3'])
-        sql = 'SELECT id FROM pers WHERE nb = ?'
-        rows = cur_sel.execute(sql, (nb,)).fetchall()
-        count = len(rows)
-        if count > 1: # impossible index UNIQUE, but who knows ?
-            continue
-        # no authority record for this author
-        if count == 0:
-            print("0 — " + str(f).strip())
-            continue
-
+        if (nb in pers_nb):
+            pers_id = pers_nb[nb]
+        else:
+            sql = 'SELECT id FROM pers WHERE nb = ?'
+            rows = cur_pers.execute(sql, (nb,)).fetchall()
+            count = len(rows)
+            if count > 1: # impossible index UNIQUE, but who knows ?
+                continue
+            # no authority record for this author
+            if count == 0:
+                # a few cases, a line with pers id but with no name
+                continue
+            pers_id = int(rows[0][0])
+            pers_nb[nb] = pers_id
+        if f['4'] is not None:
+            role = int(f['4'])
+        else:
+            role = 70
+        cur_writes.execute(
+            writes_sql, 
+            {'doc': doc_id, 'pers': pers_id, 'role': role}
+        )
 
 
 def type(r, doc_values):
@@ -138,6 +154,7 @@ def lang(r, doc_values):
     doc_values['translation'] = r['101'].indicator1
     if (r['101']['c'] == None):
         if (r['101'].indicator1 == 1):
+            # ????
             print(r)
         return
     doc_values['translation'] = r['101']['c']
@@ -158,6 +175,7 @@ def title(r, doc_values):
 
 def url(r, doc_values):
     if (r['003'] == None):
+        print("NO URL ?")
         print(r)
     else:
         doc_values['url'] = r['003'].value()
@@ -294,13 +312,16 @@ def docs(marc_file):
             lang(r, doc_values)
             place(r, doc_values)
             publisher(r, doc_values)
-            pers(r, doc_values)
             # write doc record
-            # cur.execute(doc_sql, doc_values)
+            cur.execute(doc_sql, doc_values)
+            doc_id = cur.lastrowid
+            # link to author
+            pers(r, doc_id)
+
 
 
 def main() -> int:
-    global con, cur_sel
+    global con, cur_pers, cur_writes
     parser = argparse.ArgumentParser(
         description='Crawl a folder of marc file to generate an sqlite base',
         formatter_class=argparse.RawTextHelpFormatter
@@ -314,13 +335,14 @@ def main() -> int:
     db_file = args.cataviz_db[0] + '2'
     shutil.copyfile(args.cataviz_db[0], db_file)
     con = bnfmarc.connect(db_file)
-    cur_sel = con.cursor()
+    cur_pers = con.cursor()
+    cur_writes = con.cursor()
     marc_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data/')
 
     # if (name.startswith('P174_') or name.startswith('P1187_')): 
-    for marc_file in glob.glob(os.path.join(marc_dir, "P174_*.UTF8")):
-        docs(marc_file)
     for marc_file in glob.glob(os.path.join(marc_dir, "P1187_*.UTF8")):
+        docs(marc_file)
+    for marc_file in glob.glob(os.path.join(marc_dir, "P174_*.UTF8")):
         docs(marc_file)
     con.commit()
 
