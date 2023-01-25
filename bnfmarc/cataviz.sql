@@ -56,13 +56,20 @@ CREATE TABLE place (
     PRIMARY KEY(id ASC)
 );
 
-CREATE TABLE doc_pers (
-    doc         INTEGER,
-    pers        INTEGER,
-    role        STRING,
-    id          INTEGER,       -- rowid auto
+CREATE TABLE contrib (
+    doc         INTEGER NOT NULL,
+    pers        INTEGER NOT NULL,
+    field       INTEGER NOT NULL,
+    role        INTEGER NOT NULL,
+
+    year        INTEGER, -- redundant with doc
+    type        INTEGER, -- 
+    id          INTEGER, -- rowid auto
     PRIMARY KEY(id ASC)
 );
+
+CREATE INDEX contrib_role  ON contrib(role);
+CREATE INDEX contrib_field ON contrib(field, role);
 
 CREATE TABLE pers (
     -- UniMARC BnF autorités

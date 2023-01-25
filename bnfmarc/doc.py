@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 """
 Part of bnfmarc https://github.com/bnfhack/bnfmarc
 Copyright (c) 2022 frederic.glorieux@fictif.org
@@ -22,7 +24,7 @@ con = None
 cur_pers = None
 cur_writes = None
 pers_nb = {}
-writes_cols = ['doc', 'pers', 'role']
+writes_cols = ['doc', 'pers', 'field', 'role']
 writes_sql = "INSERT INTO doc_pers (" + ", ".join(writes_cols) + ") VALUES (:" + ", :".join(writes_cols) +")"
 
 
@@ -96,34 +98,47 @@ RES FOL-T29-4
 
 def pers(r, doc_id):
     """Write link between doc to pers author"""
+    for field in r.get_fields('700'):
+        pers_field(doc_id, field)
+    for field in r.get_fields('701'):
+        pers_field(doc_id, field)
+    for field in r.get_fields('702'):
+        pers_field(doc_id, field)
+    for field in r.get_fields('703'):
+        pers_field(doc_id, field)
+
+
+def pers_field(doc_id, field):
     global pers_nb, cur_pers, writes_sql, cur_writes
-    for f in r.get_fields('700'):
-        if (f['3'] is None):
-            # ~10 cases found
-            continue
-        nb = int(f['3'])
-        if (nb in pers_nb):
-            pers_id = pers_nb[nb]
-        else:
-            sql = 'SELECT id FROM pers WHERE nb = ?'
-            rows = cur_pers.execute(sql, (nb,)).fetchall()
-            count = len(rows)
-            if count > 1: # impossible index UNIQUE, but who knows ?
-                continue
-            # no authority record for this author
-            if count == 0:
-                # a few cases, a line with pers id but with no name
-                continue
-            pers_id = int(rows[0][0])
-            pers_nb[nb] = pers_id
-        if f['4'] is not None:
-            role = int(f['4'])
-        else:
-            role = 70
-        cur_writes.execute(
-            writes_sql, 
-            {'doc': doc_id, 'pers': pers_id, 'role': role}
-        )
+    if (field['3'] is None):
+        # ~10 cases found
+        return
+
+    nb = int(field['3'])
+    if (nb in pers_nb):
+        pers_id = pers_nb[nb]
+    else:
+        sql = 'SELECT id FROM pers WHERE nb = ?'
+        rows = cur_pers.execute(sql, (nb,)).fetchall()
+        count = len(rows)
+        if count > 1: # impossible index UNIQUE, but who knows ?
+            return
+        # no authority record for this author
+        if count == 0:
+            # a few cases, a line with pers id but with no name
+            return
+        pers_id = int(rows[0][0])
+        pers_nb[nb] = pers_id
+    # sometimes no explicit function, set to author
+    if field['4'] is None:
+        role = 70
+    else:
+        role = int(field['4'])
+    cur_writes.execute(
+        writes_sql, 
+        {'doc': doc_id, 'pers': pers_id, 'field': int(field.tag), 'role': role}
+    )
+
 
 
 def type(r, doc_values):

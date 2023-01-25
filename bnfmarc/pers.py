@@ -28,24 +28,23 @@ import givens
 con = None
 # mem ids 
 pers_nb = {}
+pers_row = {
+    'nb': None,
+    'name': None,
+    'given': None,
+    'gender': None,
+    'deform': None,
+
+    'birthyear': None,
+    'deathyear': None,
+    'age': None,
+}
+pers_sql = "INSERT INTO pers (" + ", ".join([*pers_row]) + ") VALUES (:" + ", :".join([*pers_row]) +")"
 
 
 def byline(doc_file):
-    global con, pers_nb
+    global pers_row
     print(doc_file)
-    pers_row = {
-        'nb': None,
-        'name': None,
-        'given': None,
-        'gender': None,
-        'deform': None,
-        'role': None,
-
-        'birthyear': None,
-        'deathyear': None,
-        'age': None,
-    }
-    pers_sql = "INSERT INTO pers (" + ", ".join([*pers_row]) + ") VALUES (:" + ", :".join([*pers_row]) +")"
     cur = con.cursor()
     with open(doc_file, 'rb') as handle:
         reader = pymarc.MARCReader(
@@ -56,31 +55,41 @@ def byline(doc_file):
         for r in reader:
             if (r is None): # some found, forget
                 continue
-            # get the pers author field
+            # loop on personal responsabilities
             for field in r.get_fields('700'):
-                if (field['3'] is None):
-                    # ~10 cases found
-                    continue
-                nb = int(field['3'])
-                if nb in pers_nb:
-                    # already written
-                    continue
-                # a link to id only is possible
-                if field['a'] is None:
-                    print(field)
-                    continue
-                # record to write
-                for key in pers_row:
-                    pers_row[key] = None
-                pers_row['nb'] = nb
-                # extract names
-                names(field, pers_row)
-                pers_row['gender'] = gender_given(pers_row['given'])
-                # extract dates
-                dateline(field['f'], pers_row)
-                # keep id
-                pers_nb[nb] = True
-                cur.execute(pers_sql, pers_row)
+                byline_field(cur, field)
+            for field in r.get_fields('701'):
+                byline_field(cur, field)
+            for field in r.get_fields('702'):
+                byline_field(cur, field)
+            for field in r.get_fields('703'):
+                byline_field(cur, field)
+            
+
+def byline_field(cur, field):
+    global pers_nb, pers_sql, pers_row
+    if (field['3'] is None):
+        # ~10 cases found
+        return
+    nb = int(field['3'])
+    if nb in pers_nb:
+        # already written
+        return
+    # a link to id only is possible
+    if field['a'] is None:
+        return
+    # clean record
+    for key in pers_row:
+        pers_row[key] = None
+    pers_row['nb'] = nb
+    # extract names
+    names(field, pers_row)
+    pers_row['gender'] = gender_given(pers_row['given'])
+    # extract dates
+    dateline(field['f'], pers_row)
+    # keep id
+    pers_nb[nb] = True
+    cur.execute(pers_sql, pers_row)
 
 
 
@@ -258,12 +267,14 @@ def main() -> int:
     for auth_file in glob.glob(os.path.join(marc_dir, "P1486_*.UTF8")):
         auths(auth_file)
     con.commit()
+    
+    # add authors from document records but without authority
     for doc_file in glob.glob(os.path.join(marc_dir, "P1187_*.UTF8")):
         byline(doc_file)
+    con.commit()
     for doc_file in glob.glob(os.path.join(marc_dir, "P174_*.UTF8")):
         byline(doc_file)
     con.commit()
-    # add unknown authors from 
 
 if __name__ == '__main__':
     sys.exit(main())
