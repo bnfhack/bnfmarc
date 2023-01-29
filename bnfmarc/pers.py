@@ -112,6 +112,7 @@ def auths(marc_file):
         'age': None,
         'birthplace': None,
         'deathplace': None,
+        'note': None,
     }
     pers_sql = "INSERT INTO pers (" + ", ".join([*pers_row]) + ") VALUES (:" + ", :".join([*pers_row]) +")"
     cur = con.cursor()
@@ -145,9 +146,12 @@ def auths(marc_file):
 
                 if (r['301'] is not None):
                     if (r['301']['a'] is not None):
-                         pers_row['birthplace'] = r['301']['a'].strip()
+                         pers_row['birthplace'] = str(r['301']['a'].strip())
                     if (r['301']['b'] is not None):
-                         pers_row['deathplace'] = r['301']['b'].strip()
+                         pers_row['deathplace'] = str(r['301']['b'].strip())
+                # informative note 
+                if (r['300'] is not None and r['300']['a'] is not None):
+                    pers_row['note'] = str(r['300']['a'].strip())
                 gender(r, pers_row)
                 # keep id in mem
                 pers_nb[pers_row['nb']] = True

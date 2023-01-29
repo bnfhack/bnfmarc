@@ -347,8 +347,7 @@ def main() -> int:
     args = parser.parse_args()
     # tmp, copy file to keep pers
 
-    db_file = args.cataviz_db[0] + '2'
-    shutil.copyfile(args.cataviz_db[0], db_file)
+    db_file = args.cataviz_db[0]
     con = bnfmarc.connect(db_file)
     cur_pers = con.cursor()
     cur_writes = con.cursor()

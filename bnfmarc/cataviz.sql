@@ -8,7 +8,7 @@ CREATE TABLE doc (
     -- doc https://www.bnf.fr/sites/default/files/2019-01/Unimarc%2B%28B%29_201901_conversion.pdf
     -- …-1969
     -- CGI/P1187* https://api.bnf.fr/notices-bibliographiques-des-catalogues-retroconvertis-imprimes-et-audiovisuel
-    -- ftp://PRODUIT_RETRO:b9rZ2As7@pef.bnf.fr/PRODUIT_RETRO/CGI/CGI_2021/CGI_2021_Intermarc_UTF8/P1187*.UTF8
+    -- ftp://PRODUIT_RETRO:b9rZ2As7@pef.bnf.fr/PRODUIT_RETRO/CGI/CGI_2021/CGI_2021_Unimarc_UTF8/P1187*.UTF8
     -- 1970-2020
     -- BNF-Livres/P174* https://api.bnf.fr/notices-bibliographiques-de-la-bibliographie-nationale-francaise
     -- ftp://PRODUIT_RETRO:b9rZ2As7@pef.bnf.fr/PRODUIT_RETRO/BNF-Livres/BNF-Livres_2021/BNF-Livres_2021_Unimarc_UTF8/P174*.UTF8
@@ -47,6 +47,7 @@ CREATE INDEX doc_translation ON doc(year, translation);
 CREATE TABLE place (
     -- BnF geo names, InterMARC
     -- P2819* https://api.bnf.fr/notices-dautorite-personnes-collectivites-oeuvres-lieux-noms-communs-de-bnf-catalogue-general
+    -- ftp://PRODUIT_RETRO:b9rZ2As7@pef.bnf.fr/PRODUIT_RETRO/Geo/Geo_2021/Geo_2021_Unimarc_UTF8/P2819*.UTF8
     file        TEXT NOT NULL, -- source File
     form        TEXT,          -- form (authority or rejected)
     parent      INTEGER,       -- identifier of parent for rejected form
@@ -91,6 +92,7 @@ CREATE TABLE pers (
     age         INTEGER,       -- age at death (for demography)
     birthplace  TEXT,          -- birth place
     deathplace  TEXT,          -- death place
+    note        BLOB,          -- information about author
 
     agedec      INTEGER,       -- âge à la mort, décade
     docs        INTEGER,       -- doc count as first author
