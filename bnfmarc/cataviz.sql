@@ -70,7 +70,7 @@ CREATE TABLE contrib (
 
 CREATE INDEX contrib_role  ON contrib(role);
 CREATE INDEX contrib_field ON contrib(field, role);
-CREATE INDEX contrib_pers ON contrib(pers, year, type);
+CREATE INDEX contrib_pers ON contrib(type, year, pers);
 
 CREATE TABLE pers (
     -- UniMARC BnF autorités

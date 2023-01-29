@@ -14,7 +14,11 @@ UPDATE contrib SET type = 5 WHERE role IN (230, 233, 236, 250, 510, 721);
 UPDATE contrib SET year = (SELECT year FROM doc WHERE contrib.doc = doc.id);
 
 
-UPDATE person SET 
-  -- premier document publié du vivant de l’auteur
-  doc1=(SELECT date FROM contrib WHERE pers=pers.id AND type = 1 ORDER BY date LIMIT 1)
-)
+UPDATE pers SET 
+    -- docs count as an author
+    docs=(SELECT count(*) FROM contrib WHERE pers=pers.id AND type = 1),
+    -- first doc published as author
+    doc1=(SELECT year FROM contrib WHERE pers=pers.id AND type = 1 ORDER BY year LIMIT 1)
+;
+
+VACUUM;

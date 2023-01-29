@@ -25,7 +25,7 @@ cur_pers = None
 cur_writes = None
 pers_nb = {}
 writes_cols = ['doc', 'pers', 'field', 'role']
-writes_sql = "INSERT INTO doc_pers (" + ", ".join(writes_cols) + ") VALUES (:" + ", :".join(writes_cols) +")"
+writes_sql = "INSERT INTO contrib (" + ", ".join(writes_cols) + ") VALUES (:" + ", :".join(writes_cols) +")"
 
 
 def desc(r, doc_values):
@@ -303,7 +303,6 @@ def docs(marc_file):
         'clement_no': None,
         'format': None,
         'pages': None,
-        'debug': None,
     }
     doc_sql = "INSERT INTO doc (" + ", ".join([*doc_values]) + ") VALUES (:" + ", :".join([*doc_values]) +")"
     cur = con.cursor()
