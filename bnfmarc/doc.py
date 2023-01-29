@@ -285,7 +285,7 @@ def str_year(str):
 
 def docs(marc_file):
     global con
-    print(marc_file)
+    print("doc < " + marc_file)
     file = os.path.basename(marc_file)
     doc_values = {
         'file': None,

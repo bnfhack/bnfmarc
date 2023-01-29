@@ -44,7 +44,7 @@ pers_sql = "INSERT INTO pers (" + ", ".join([*pers_row]) + ") VALUES (:" + ", :"
 
 def byline(doc_file):
     global pers_row
-    print(doc_file)
+    print("pers < " + doc_file)
     cur = con.cursor()
     with open(doc_file, 'rb') as handle:
         reader = pymarc.MARCReader(
@@ -95,7 +95,7 @@ def byline_field(cur, field):
 
 def auths(marc_file):
     global con, pers_nb
-    print(marc_file)
+    print("pers < " + marc_file)
 
     pers_row = {
         'file': None,
