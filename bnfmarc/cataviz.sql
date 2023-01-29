@@ -30,7 +30,6 @@ CREATE TABLE doc (
     clement_no  TEXT,          -- 930$5
     format      INTEGER,       -- in-° : 8, 4, 12… 930$5, 215$a
     pages       INTEGER,       -- page count, 215$a
-    debug       TEXT,          -- a temp message to check data
     id          INTEGER,       -- rowid auto
     PRIMARY KEY(id ASC)
 );
@@ -38,12 +37,12 @@ CREATE TABLE doc (
 CREATE INDEX doc_year ON doc(year, type);
 CREATE INDEX doc_lang ON doc(year, lang);
 CREATE INDEX doc_type ON doc(type, year);
-CREATE INDEX doc_translation ON doc(year, translation);
 CREATE INDEX doc_pages ON doc(year, pages);
 CREATE INDEX doc_publisher ON doc(year, publisher);
 CREATE INDEX doc_place ON doc(year, place);
 CREATE INDEX doc_format ON doc(year, format, pages);
-CREATE INDEX doc_debug ON doc(debug, year);
+CREATE INDEX doc_translation ON doc(year, translation);
+
 
 CREATE TABLE place (
     -- BnF geo names, InterMARC
@@ -70,6 +69,7 @@ CREATE TABLE contrib (
 
 CREATE INDEX contrib_role  ON contrib(role);
 CREATE INDEX contrib_field ON contrib(field, role);
+CREATE INDEX contrib_pers ON contrib(pers, year, type);
 
 CREATE TABLE pers (
     -- UniMARC BnF autorités
@@ -107,4 +107,5 @@ CREATE TABLE pers (
 CREATE INDEX pers_given ON pers(given);
 CREATE INDEX pers_name ON pers(name);
 CREATE INDEX pers_deform ON pers(deform);
+CREATE INDEX pers_doc1 ON pers(doc1, gender);
 
