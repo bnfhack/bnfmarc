@@ -19,6 +19,10 @@ import sys
 # local
 import bnfmarc
 
+""" Parse document records
+https://www.bnf.fr/sites/default/files/2019-01/Unimarc%2B%28B%29_201901_conversion.pdf
+"""
+
 # shared sqlite3 connexion
 con = None
 cur_pers = None
@@ -26,47 +30,49 @@ cur_writes = None
 pers_nb = {}
 writes_cols = ['doc', 'pers', 'field', 'role']
 writes_sql = "INSERT INTO contrib (" + ", ".join(writes_cols) + ") VALUES (:" + ", :".join(writes_cols) +")"
+year_min = 1400
+year_max = 2020
 
 
-def desc(r, doc_values):
-    """Get physical informations. Let clement() work after for more precise info on folio """
-    desc = None
+def phys(r, doc_values):
+    """Get physical informations. """
+    phys = None
     if (r['215'] != None):
-        desc = str(r['215'])
+        phys = str(r['215'])
     else:
-        desc = str(r['210'])
+        phys = str(r['210'])
 
-    found = re.search(r"(\d+)[ ]*p\.", desc, re.IGNORECASE)
+    found = re.search(r"(\d+)[ ]*p\.", phys, re.IGNORECASE)
     if (found != None):
         pages = int(found.group(1))
         if (pages > 9999):
             pages = 1000 # error 
         doc_values['pages'] = pages
     if (doc_values['pages'] == None):
-        found = re.search(r"pièce|placard", desc, re.IGNORECASE)
+        found = re.search(r"pièce|placard", phys, re.IGNORECASE)
         if (found != None):
             doc_values['pages'] = 1
     # format
     # space error: 12 juin 1782, in-fol.
-    found = re.search(r"In[ \-]*(\d+)", desc, re.IGNORECASE)
+    found = re.search(r"In[ \-]*(\d+)", phys, re.IGNORECASE)
     if (found != None):
         doc_values['format'] = found.group(1)
         return
-    found = re.search(r"in-fol", desc, re.IGNORECASE)
+    found = re.search(r"in-fol", phys, re.IGNORECASE)
     if (found != None):
         doc_values['format'] = 2
         return
-    found = re.search(r"gr[\. ]+fol[\. ]?", desc, re.IGNORECASE)
+    found = re.search(r"gr[\. ]+fol[\. ]?", phys, re.IGNORECASE)
     if (found != None):
         doc_values['format'] = 1
         # placard, affiche ? ou presse ?
         return
     # 8°
-    found = re.search(r"(\d+)°", desc, re.IGNORECASE)
+    found = re.search(r"(\d+)°", phys, re.IGNORECASE)
     if (found != None):
-        doc_values['format'] = found.group(1)
+        doc_values['format'] = int(found.group(1))
         return
-    found = re.search(r"(\d+) *cm", desc, re.IGNORECASE)
+    found = re.search(r"(\d+) *cm", phys, re.IGNORECASE)
     if (found != None):
         cm = int(found.group(1))
         if (cm < 10):
@@ -84,17 +90,79 @@ def desc(r, doc_values):
         return
 
 
-def clement(r):
+def clement(r, doc_values):
     """Get format and other info from clement cotation
 
 RES FOL-T29-4
+=930  \\$5FR-751131010:EL 8-Z-1935 (7)
+=930  \\$5FR-751131010:8-CNLJD-13315
+=930  \\$5FR-751131010:8-CNLJD-14804
 
     """
+    fields = r.get_fields('930')
+    if fields is None or len(fields) == 0:
+        # no clement to find, > 1980 ?
+        return
+    i = 0
+    for f in fields:
+        i = i + 1
+        cote =  None
+        if (f['a'] is not None):
+            cote = f['a']
+            print(cote)
+        elif (f['5'] is not None):
+            cote = re.sub(r"(FR-\d{9}):([A-Z]+ )?", '', f['5'])
+        if cote is None:
+            continue
+        found = re.search(r"((?P<format>[^\-]+)-)?(?P<clement>[A-Z][^ \-]*)(\-\d+| PIECE)", cote)
+        if found is not None:
+            if found.group('clement') is None:
+                print("No clement ? " + cote + "|" + str(f))
+                continue
+            clement_format(found.group('format'), doc_values)
+            doc_values['clement'] = found.group('clement')
+            break # stop at first clement found
+        # THETA ?
+        found = re.search(r"((?P<format>[^\-]+)-)(?P<clement>THETA|TH)", cote)
+        if found is not None:
+            clement_format(found.group('format'), doc_values)
+            doc_values['clement'] = found.group('clement')
+            break # stop at first clement found
+
+
     for f in r.get_fields('930'):
         found = re.search(r"(FR-\d{9}):(.*)", f['5'])
         if (found == None):
             # never arrive, all docs from FR(ench) BnF
             return None
+
+def clement_format(format, doc_values):
+    if format is None or format == '':
+        return
+    if format == 'FOL':
+        format = '2'
+    if not format.isdigit():
+        return
+    doc_values['format'] = int(format)
+
+def byline(r, doc_values):
+    """Build a normalized byline from authors """
+    authors = []
+    # strip field without a name
+    for field in r.get_fields('700'):
+        if field['a'] is None:
+            continue
+        authors.append(field)
+    count = len(authors)
+    if count == 0:
+        return
+    elif count == 1:
+        doc_values['byline'] = authors[0]['a']
+    elif count == 2:
+        doc_values['byline'] = authors[0]['a'] + " & " + authors[1]['a']
+    else:
+        doc_values['byline'] = authors[0]['a'] + ", " + authors[1]['a'] + "… (" + count + ")" 
+
 
 def pers(r, doc_id):
     """Write link between doc to pers author"""
@@ -121,7 +189,7 @@ def pers_field(doc_id, field):
         sql = 'SELECT id FROM pers WHERE nb = ?'
         rows = cur_pers.execute(sql, (nb,)).fetchall()
         count = len(rows)
-        if count > 1: # impossible index UNIQUE, but who knows ?
+        if count > 1: # impossible, index UNIQUE, but who knows ?
             return
         # no authority record for this author
         if count == 0:
@@ -176,17 +244,37 @@ def lang(r, doc_values):
 
 
 def title(r, doc_values):
-    if (r['500'] != None and r['500']['a'] != None):
-        doc_values['title'] = r['500']['a']
+    """Build title """
+    title = None
+    desc = []
+    if (r['500'] is not None and r['500']['a'] is not None):
+        title = r['500']['a']
+        if (r['200'] is not None and r['200']['a'] is not None):
+            desc.append(str(r['200']['a']))
+    elif (r['200'] is None):
+        doc_values['title'] = "[Sans titre]"
         return
-    # translated title ?
-    if (r['200'] != None and r['200']['a'] != None):
-        doc_values['title'] = r['200']['a']
+    elif (r['200']['a'] is not None):
+        title = r['200']['a']
+    else: # No title ?
+        doc_values['title'] = "[Sans titre]"
         return
-    if (r['200'] != None and r['200']['i'] != None):
-        doc_values['title'] = r['200']['i']
-        return
-    doc_values['title'] = "[Sans titre]"
+    # reject article "Le diable boiteux"
+    title = re.sub(r'(.+?) ? *(.*)', r'\2 (\1)', title)
+    # ? Apologie des ceremonies de l'Eglise
+    doc_values['title'] = title
+    
+    # long title
+    if (r['200']['e'] is not None):
+        desc.append(str(r['200']['e']))
+    if (r['200']['h'] is not None):
+        desc.append(str(r['200']['h']))
+    if (r['200']['i'] is not None):
+        desc.append(str(r['200']['i']))
+    if len(desc) > 0:
+        desc = ", ".join(desc)
+        desc = re.sub(r'[@]', '', desc).strip()
+        doc_values['desc'] = desc
 
 def url(r, doc_values):
     if (r['003'] == None):
@@ -197,43 +285,84 @@ def url(r, doc_values):
     if (r['856'] != None and r['856']['u']):
         doc_values['gallica'] = r['856']['u']
 
+def address(r, doc_values):
+    """Parse address line"""
+    if r['210'] is None or r['210']['r'] is None:
+        return
+    doc_values['address'] = r['210']['r']
+    # Halae Magdeburgicae : typis Orphanotrophei, 1715
+    # [Paris, Louis Sevestre, 1715]
+    address = r['210']['r'].strip(' ()[].,:;')
+    members = re.split(r" *[,:;] *", address)
+    if len(members) == 1:
+        doc_values['publisher'] = members[0].strip()
+    else :
+        doc_values['place'] = members[0].strip()
+        doc_values['publisher'] = members[1].strip()
+        if len(members) > 2:
+            found = re.search(r"(\d\d\d\d)", members[2], re.IGNORECASE)
+            if found is not None:
+                doc_values['year'] = str_year(found.group(1))
+
+
 def publisher(r, doc_values):
-    f = None
-    if (r['214'] != None):
-        f = r['214']
-    elif (r['210'] != None):
-        f = r['210']
-    else:
+    # if found in address
+    publisher = doc_values['publisher']
+    if r['210'] is not None and r['210']['c'] is not None:
+        publisher = r['210']['c'].strip()
+    # nothing found
+    if not publisher:
         return
-    if (f['c'] != None):
-        doc_values['publisher'] = f['c']
+    # record orginal
+    doc_values['publisher'] = publisher
+    # [s.n.], [s.n.?]
+    if re.search(r"s\. ?n[\.,]", publisher, flags=re.IGNORECASE) is not None:
         return
-    elif (f['r'] == None):
-        # What in this field ?
-        return
+    # normalize value
+    publisher = publisher.strip(' ()[].,:;')
+    doc_values['publisher_group'] = publisher
+    doc_values['publisher_like'] = bnfmarc.deform(doc_values['publisher'])
 
 
+# find a place (after publisher and address line parsing)
 def place(r, doc_values):
-    if (r['620'] != None and r['620']['d'] != None):
-        doc_values['place'] = r['620']['d']
-        return
-    f = None
-    if (r['214'] != None):
-        f = r['214']
-    elif (r['210'] != None):
-        f = r['210']
+    place = None
+    if (r['620'] is not None and r['620']['d'] is not None):
+        place = r['620']['d']
+    elif (r['214'] is not None and r['214']['a'] is not None):
+        place = r['214']['a']
+    elif (r['210'] is not None and r['210']['a'] is not None):
+        place = r['210']['a']
+    elif doc_values['place'] is not None:
+        # found with address or publisher parsing
+        place = doc_values['place']
     else:
         return
-    if (f['a'] != None):
-        doc_values['place'] = f['a']
+    # keep original
+    doc_values['place'] = place
+    # S. l.
+    if re.search(r"s\. ?l[\.,]", place, flags=re.IGNORECASE) is not None:
         return
-    elif (f['r'] == None):
-        # What in this field ?
+
+    # "Paris,", "[Paris]" 
+    place = place.strip(' ()[].,:;')
+    place = re.sub( r"^(À|A|En|In|In the|'s|T'|Te) ", '', place, re.IGNORECASE)
+    # Madrid, impr. de A. Sanz
+    if ',' in place:
+        list = place.split(',')
+        place = list[0].strip()
+        doc_values['publisher'] = list[1].strip()
+
+    # Amsterdam ; et Paris
+    # Dresden und Leipzig
+    # Londres et Paris
+    place = re.sub( r"[  ]?(et|und|;|,).*$", '', place, re.IGNORECASE)
+    place = place.strip()
+    if not place:
         return
-    # An editorial place could be parsed here, but most of work have been done by BnF
-    return
-    val = f['r']
-    val = re.sub(r'[^\[\]\(\)]+|^[AÀ] ', 'a', val)
+    doc_values['place_group'] = place
+    doc_values['place_like'] = bnfmarc.deform(place)
+
 
 def country(r, doc_values):
     if (r['102'] != None and r['102']['a'] != None):
@@ -245,7 +374,7 @@ def country(r, doc_values):
 def year(r, doc_values):
     str = r['100'].value()[9:13]
     year = str_year(str)
-    if (year != None and year > 1400 and year < 2030):
+    if (year != None):
         doc_values['year'] = year
         return
     f = None
@@ -255,29 +384,31 @@ def year(r, doc_values):
         f = r['210']
     else: # no other field for date
         return
-    val = None
+    year = None
     if (f['d'] != None):
-        val = f['d']
+        year = f['d']
     elif (f['r'] != None):
-        val = f['r']
+        year = f['r']
+    elif doc_values['year'] != None:
+        year = doc_values['year']
     else:
         return
     # find [1810]
-    found = re.search(r'([\d\?\.]{4})', val)
+    found = re.search(r'([\d\?\.]{4})', year)
     if (found == None):
         return
     str = found.group(1)
     year = str_year(str)
-    if (year == None):
-        return
     doc_values['year'] = year
-    # do not serche date from author (reeditions)
+    
 
 def str_year(str):
     if (str == None):
         return None
     try:
         year = int(str)
+        if year <= year_min or year >= year_max:
+            return None
         return year
     except ValueError:
         return None
@@ -288,21 +419,32 @@ def docs(marc_file):
     print("doc < " + marc_file)
     file = os.path.basename(marc_file)
     doc_values = {
-        'file': None,
-        'url': '',
-        'gallica': None,
-        'type': None,
-        'lang': None,
         'title': '',
+        'desc': None,
+
+        'byline': None,
+
+        'address': None,
+        'place': None,
+        'place_group': None,
+        'place_like': None,
+        'publisher': None,
+        'publisher_group': None,
+        'publisher_like': None,
+        'format': None,
+        'pages': None,
+
+        'type': None,
         'translation': None,
         'year': None,
         'country': None,
-        'place': None,
-        'publisher': None,
+        'clement': None,
         'clement_letter': None,
-        'clement_no': None,
-        'format': None,
-        'pages': None,
+        'lang': None,
+
+        'file': None,
+        'url': '',
+        'gallica': None,
     }
     doc_sql = "INSERT INTO doc (" + ", ".join([*doc_values]) + ") VALUES (:" + ", :".join([*doc_values]) +")"
     cur = con.cursor()
@@ -318,14 +460,17 @@ def docs(marc_file):
             doc_values['file'] = file
             doc_values['url'] = str(r['003'].value().strip())
             # doc_values['marc'] = str(r)
-            year(r, doc_values)
-            type(r, doc_values)
             url(r, doc_values)
-            desc(r, doc_values) # before clement
             title(r, doc_values)
+            phys(r, doc_values)
+            clement(r, doc_values)
+            type(r, doc_values)
             lang(r, doc_values)
-            place(r, doc_values)
+            address(r, doc_values) # before "place: publisher, year."
+            year(r, doc_values)
             publisher(r, doc_values)
+            # place after publisher, in case of more precise field
+            place(r, doc_values)
             # write doc record
             cur.execute(doc_sql, doc_values)
             doc_id = cur.lastrowid

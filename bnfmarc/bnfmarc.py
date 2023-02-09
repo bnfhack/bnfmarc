@@ -26,11 +26,41 @@ def connect(cataviz_db, create=False):
 
 # returns a normalized form lowercase with no diacritics
 def deform(s):
-    # 1. casefold(), lowercase
-    # 2. normalize NFD, decompose letters and diacritics
-    # 3. ''.join(), split by char
-    # 4. category() != 'Mn', Mn="Mark, nonspacing", strip diacritics 
-    return ''.join(c for c 
-        in unicodedata.normalize('NFD', s.casefold())
-        if unicodedata.category(c) != 'Mn'
-    )
+    # casefold(), lowercase
+    # normalize NFD, decompose letters and diacritics
+    # strip diacritics and other non letters
+    # normalize space (split on ' ' and join on ' ')
+    chars = []
+    show = False
+    for c in unicodedata.normalize('NFD', s.casefold()):
+        cat = unicodedata.category(c)
+        if c == 'œ':
+            chars.append('o')
+            chars.append('e')
+            continue
+        if c == 'æ':
+            chars.append('a')
+            chars.append('e')
+            continue
+        if cat == 'Ll':
+            chars.append(c)
+            continue
+        cat0 = cat[0]
+        if c == '$': # bad marc segmentation
+            break
+        if cat == 'Mn': # diacritic
+            continue
+        if cat == 'Lm' or cat == 'Sk': # Letter modifier, ex: Muʻtamad
+            continue
+        if cat == 'Cc' or cat == 'Cf': # Other, Control, le bibliophile jean
+            chars.append(' ')
+            continue            
+        if cat0 == 'M' or cat0 == 'P' or cat0 == 'Z':
+            chars.append(' ')
+            continue
+        if cat == 'Nd':
+            chars.append(c)
+            continue
+        chars.append(c)
+    deform = " ".join(''.join(chars).split())
+    return deform
