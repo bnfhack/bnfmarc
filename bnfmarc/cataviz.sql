@@ -43,9 +43,10 @@ CREATE TABLE doc (
     PRIMARY KEY(id ASC)
 );
 
-CREATE INDEX doc_year ON doc(year, type);
+CREATE INDEX doc_clement ON doc(year, clement);
+CREATE INDEX doc_clement2 ON doc(clement, year);
+CREATE INDEX doc_format ON doc(year, format, pages);
 CREATE INDEX doc_lang ON doc(year, lang);
-CREATE INDEX doc_type ON doc(type, year);
 CREATE INDEX doc_pages ON doc(year, pages);
 CREATE INDEX doc_publisher ON doc(year, publisher_group);
 CREATE INDEX doc_publisher2 ON doc(publisher_group, year);
@@ -53,9 +54,9 @@ CREATE INDEX doc_place ON doc(year, place_group);
 CREATE INDEX doc_place2 ON doc(place_group, year);
 CREATE INDEX doc_place3 ON doc(year, place_like);
 CREATE INDEX doc_place4 ON doc(place_like, year);
-CREATE INDEX doc_format ON doc(year, format, pages);
 CREATE INDEX doc_translation ON doc(year, translation);
-CREATE INDEX doc_clement ON doc(year, clement_letter, clement_no);
+CREATE INDEX doc_type ON doc(type, year);
+CREATE INDEX doc_year ON doc(year, type);
 
 
 CREATE TABLE contrib (
@@ -75,6 +76,17 @@ CREATE INDEX contrib_role  ON contrib(role);
 CREATE INDEX contrib_field ON contrib(field, role);
 CREATE INDEX contrib_pers ON contrib(pers, year, type);
 
+CREATE TABLE about (
+    doc         INTEGER NOT NULL,
+    pers        INTEGER NOT NULL,
+    year        INTEGER, -- copied from doc, for plot perfs
+    id          INTEGER, -- rowid auto
+    PRIMARY KEY(id ASC)
+);
+
+CREATE INDEX about_doc  ON about(doc);
+CREATE INDEX about_pers ON about(pers, year);
+
 
 CREATE TABLE pers (
     -- UniMARC BnF autorités
@@ -89,30 +101,27 @@ CREATE TABLE pers (
 
 
     birthyear   INTEGER,       -- birth year: auth200$f, auth103$a
-    deathyear   INTEGER,       -- death year: auth200$f, auth103$a
     birthplace  TEXT,          -- birth place
+    deathyear   INTEGER,       -- death year: auth200$f, auth103$a
     deathplace  TEXT,          -- death place
     note        BLOB,          -- information about author
+
+    generation  INTEGER,       -- a date composinf birtyear or doc1
+    docs        INTEGER,       -- doc count as first author
+    doc1        INTEGER,       -- date of first doc
+    age1        INTEGER,       -- age at first doc
+    age         INTEGER,       -- age at death (for demography)
+
     file        TEXT,          -- source File from auth marc, or NULL from doc
     url         TEXT,          -- url catalog, auth#003, or NULL
     nb          INT NOT NULL UNIQUE, -- doc700$3, auth#003
-
-    age         INTEGER,       -- age at death (for demography)
-    agedec      INTEGER,       -- âge à la mort, décade
-    docs        INTEGER,       -- doc count as first author
-    anthum      INTEGER,       -- doc count before death
-    posthum     INTEGER,       -- doc count after death
-    lang        TEXT,          -- main language for docs
-    doc1        INTEGER,       -- date of first doc
-    age1        INTEGER,       -- age at first doc
-
     id          INTEGER,       -- rowid auto
     PRIMARY KEY(id ASC)
 );
 
 CREATE INDEX pers_given ON pers(given);
 CREATE INDEX pers_name ON pers(name);
-CREATE INDEX pers_deform ON pers(deform);
+CREATE INDEX pers_deform ON pers(deform, generation);
 CREATE INDEX pers_docs ON pers(docs DESC, deform);
 CREATE INDEX pers_doc1 ON pers(doc1, gender);
 

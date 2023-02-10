@@ -19,19 +19,25 @@ UPDATE doc SET year = NULL WHERE year < 1450;
 UPDATE contrib SET year = (SELECT year FROM doc WHERE contrib.doc = doc.id);
 -- set birthyear of contributions (for checks)
 UPDATE contrib SET birthyear = (SELECT birthyear FROM pers WHERE contrib.pers = pers.id);
-
-
 -- delete date before birth of author
 UPDATE contrib SET year = NULL WHERE birthyear IS NOT NULL AND year < birthyear;
+-- set year of a study about some one
+UPDATE about SET year = (SELECT year FROM doc WHERE about.doc = doc.id);
+
 -- maybe a bug
 UPDATE doc SET place = NULL WHERE place = '';
 
 UPDATE pers SET 
     -- docs count as an author
-    docs=(SELECT count(*) FROM contrib WHERE pers=pers.id AND type = 1),
+    docs = (SELECT count(*) FROM contrib WHERE pers=pers.id AND type = 1),
     -- first doc published as author (be careful of NULL year)
-    doc1=(SELECT year FROM contrib WHERE pers=pers.id AND type = 1 ORDER BY year ASC NULLS LAST LIMIT 1)
+    doc1 = (SELECT year FROM contrib WHERE pers=pers.id AND type = 1 ORDER BY year ASC NULLS LAST LIMIT 1),
+    -- ensure a date to select authors by date
+    generation = birthyear
 ;
+-- ensure a date to select authors by date
+UPDATE pers SET generation = deathyear - 50 WHERE generation IS NULL AND deathyear IS NOT NULL;
+UPDATE pers SET generation = doc1 WHERE generation IS NULL AND doc1 IS NOT NULL;
 
 
 VACUUM;

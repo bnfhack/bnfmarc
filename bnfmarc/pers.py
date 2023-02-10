@@ -64,6 +64,9 @@ def byline(doc_file):
                 byline_field(cur, field)
             for field in r.get_fields('703'):
                 byline_field(cur, field)
+            # person as a subject
+            for field in r.get_fields('600'):
+                byline_field(cur, field)
             
 
 def byline_field(cur, field):
@@ -71,7 +74,8 @@ def byline_field(cur, field):
     if (field['3'] is None):
         # ~10 cases found
         return
-    nb = int(field['3'])
+    # found 3 cases with nb repetition
+    nb = int(field['3'][0:8])
     if nb in pers_nb:
         # already written
         return

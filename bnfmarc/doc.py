@@ -25,11 +25,20 @@ https://www.bnf.fr/sites/default/files/2019-01/Unimarc%2B%28B%29_201901_conversi
 
 # shared sqlite3 connexion
 con = None
-cur_pers = None
-cur_writes = None
-pers_nb = {}
-writes_cols = ['doc', 'pers', 'field', 'role']
-writes_sql = "INSERT INTO contrib (" + ", ".join(writes_cols) + ") VALUES (:" + ", :".join(writes_cols) +")"
+# A cache of pers.id by pers.nb (cote) 
+pers_cache = {}
+# isolate a cursor for pers select, supposed to ease sqlite cache, not tested
+pers_cur = None
+# things for contrib table population
+contrib_cur = None
+contrib_cols = ['doc', 'pers', 'field', 'role']
+contrib_sql = "INSERT INTO contrib (" + ", ".join(contrib_cols) + ") VALUES (:" + ", :".join(contrib_cols) +")"
+# things for about (pers) table population
+about_cur = None
+about_cols = ['doc', 'pers']
+about_sql = "INSERT INTO about (" + ", ".join(about_cols) + ") VALUES (:" + ", :".join(about_cols) +")"
+
+
 year_min = 1400
 year_max = 2020
 
@@ -167,44 +176,61 @@ def byline(r, doc_values):
 def pers(r, doc_id):
     """Write link between doc to pers author"""
     for field in r.get_fields('700'):
-        pers_field(doc_id, field)
+        contrib(doc_id, field)
     for field in r.get_fields('701'):
-        pers_field(doc_id, field)
+        contrib(doc_id, field)
     for field in r.get_fields('702'):
-        pers_field(doc_id, field)
+        contrib(doc_id, field)
     for field in r.get_fields('703'):
-        pers_field(doc_id, field)
+        contrib(doc_id, field)
+    for field in r.get_fields('600'):
+        about(doc_id, field)
 
-
-def pers_field(doc_id, field):
-    global pers_nb, cur_pers, writes_sql, cur_writes
+def pers_id(field):
+    global pers_cache, pers_cur
     if (field['3'] is None):
         # ~10 cases found
-        return
+        return None
+    nb = int(field['3'][0:8])
+    if (nb in pers_cache):
+        return pers_cache[nb]
 
-    nb = int(field['3'])
-    if (nb in pers_nb):
-        pers_id = pers_nb[nb]
-    else:
-        sql = 'SELECT id FROM pers WHERE nb = ?'
-        rows = cur_pers.execute(sql, (nb,)).fetchall()
-        count = len(rows)
-        if count > 1: # impossible, index UNIQUE, but who knows ?
-            return
-        # no authority record for this author
-        if count == 0:
-            # a few cases, a line with pers id but with no name
-            return
-        pers_id = int(rows[0][0])
-        pers_nb[nb] = pers_id
+    sql = 'SELECT id FROM pers WHERE nb = ?'
+    rows = pers_cur.execute(sql, (nb,)).fetchall()
+    count = len(rows)
+    if count > 1: # impossible, index UNIQUE, but who knows ?
+        return
+    # no authority record for this author
+    if count == 0:
+        # a few cases, a line with pers id but with no name
+        return
+    pers_id = int(rows[0][0])
+    pers_cache[nb] = pers_id
+    return pers_id
+
+def contrib(doc_id, field):
+    global contrib_sql, contrib_cur
+    id = pers_id(field)
+    if id is None:
+        return
     # sometimes no explicit function, set to author
     if field['4'] is None:
         role = 70
     else:
         role = int(field['4'])
-    cur_writes.execute(
-        writes_sql, 
-        {'doc': doc_id, 'pers': pers_id, 'field': int(field.tag), 'role': role}
+    contrib_cur.execute(
+        contrib_sql, 
+        {'doc': doc_id, 'pers': id, 'field': int(field.tag), 'role': role}
+    )
+
+def about(doc_id, field):
+    global about_sql, about_cur
+    id = pers_id(field)
+    if id is None:
+        return
+    about_cur.execute(
+        about_sql, 
+        {'doc': doc_id, 'pers': id}
     )
 
 
@@ -480,7 +506,7 @@ def docs(marc_file):
 
 
 def main() -> int:
-    global con, cur_pers, cur_writes
+    global about_cur, con, contrib_cur, pers_cur
     parser = argparse.ArgumentParser(
         description='Crawl a folder of marc file to generate an sqlite base',
         formatter_class=argparse.RawTextHelpFormatter
@@ -493,8 +519,9 @@ def main() -> int:
 
     db_file = args.cataviz_db[0]
     con = bnfmarc.connect(db_file)
-    cur_pers = con.cursor()
-    cur_writes = con.cursor()
+    pers_cur = con.cursor()
+    contrib_cur = con.cursor()
+    about_cur = con.cursor()
     marc_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data/')
 
     # if (name.startswith('P174_') or name.startswith('P1187_')): 
