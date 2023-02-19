@@ -25,17 +25,15 @@ https://www.bnf.fr/sites/default/files/2019-01/Unimarc%2B%28B%29_201901_conversi
 
 # shared sqlite3 connexion
 con = None
-# A cache of pers.id by pers.nb (cote) 
-pers_cache = {}
-# isolate a cursor for pers select, supposed to ease sqlite cache, not tested
-pers_cur = None
+# isolate a cursor for auth select, supposed to ease sqlite cache, not verified
+auth_cur = None
 # things for contrib table population
 contrib_cur = None
-contrib_cols = ['doc', 'pers', 'field', 'role']
+contrib_cols = ['doc', 'auth', 'field', 'role']
 contrib_sql = "INSERT INTO contrib (" + ", ".join(contrib_cols) + ") VALUES (:" + ", :".join(contrib_cols) +")"
-# things for about (pers) table population
+# things for about (auth) table population
 about_cur = None
-about_cols = ['doc', 'pers']
+about_cols = ['doc', 'auth']
 about_sql = "INSERT INTO about (" + ", ".join(about_cols) + ") VALUES (:" + ", :".join(about_cols) +")"
 
 
@@ -162,6 +160,10 @@ def byline(r, doc_values):
         if field['a'] is None:
             continue
         authors.append(field)
+    for field in r.get_fields('710'):
+        if field['a'] is None:
+            continue
+        authors.append(field)
     count = len(authors)
     if count == 0:
         return
@@ -170,47 +172,63 @@ def byline(r, doc_values):
     elif count == 2:
         doc_values['byline'] = authors[0]['a'] + " & " + authors[1]['a']
     else:
-        doc_values['byline'] = authors[0]['a'] + ", " + authors[1]['a'] + "… (" + count + ")" 
+        doc_values['byline'] = authors[0]['a'] + ", " + authors[1]['a'] + "… (" + count + ")"
 
 
-def pers(r, doc_id):
-    """Write link between doc to pers author"""
+def auth_links(r, doc_id):
+    """Write links between doc to auth"""
     for field in r.get_fields('700'):
         contrib(doc_id, field)
     for field in r.get_fields('701'):
         contrib(doc_id, field)
     for field in r.get_fields('702'):
         contrib(doc_id, field)
-    for field in r.get_fields('703'):
-        contrib(doc_id, field)
     for field in r.get_fields('600'):
         about(doc_id, field)
+    # corporate
+    for field in r.get_fields('710'):
+        contrib(doc_id, field)
+    for field in r.get_fields('711'):
+        contrib(doc_id, field)
+    for field in r.get_fields('712'):
+        contrib(doc_id, field)
+    for field in r.get_fields('601'):
+        about(doc_id, field)
 
-def pers_id(field):
-    global pers_cache, pers_cur
+""" Old when nb <> id
+def auth_id(field):
+    global auth_cache, auth_cur
     if (field['3'] is None):
         # ~10 cases found
         return None
     nb = int(field['3'][0:8])
-    if (nb in pers_cache):
-        return pers_cache[nb]
+    if (nb in auth_cache):
+        return auth_cache[nb]
 
-    sql = 'SELECT id FROM pers WHERE nb = ?'
-    rows = pers_cur.execute(sql, (nb,)).fetchall()
+    sql = 'SELECT id FROM auth WHERE nb = ?'
+    rows = auth_cur.execute(sql, (nb,)).fetchall()
     count = len(rows)
     if count > 1: # impossible, index UNIQUE, but who knows ?
         return
     # no authority record for this author
     if count == 0:
-        # a few cases, a line with pers id but with no name
+        # a few cases, a line with auth id but with no name
         return
-    pers_id = int(rows[0][0])
-    pers_cache[nb] = pers_id
-    return pers_id
+    auth_id = int(rows[0][0])
+    auth_cache[nb] = auth_id
+    return auth_id
+"""
+
+def auth_id(field):
+    if (field['3'] is None):
+        # ~10 cases found
+        return None
+    id = int(field['3'][0:8])
+    return id
 
 def contrib(doc_id, field):
     global contrib_sql, contrib_cur
-    id = pers_id(field)
+    id = auth_id(field)
     if id is None:
         return
     # sometimes no explicit function, set to author
@@ -220,17 +238,17 @@ def contrib(doc_id, field):
         role = int(field['4'])
     contrib_cur.execute(
         contrib_sql, 
-        {'doc': doc_id, 'pers': id, 'field': int(field.tag), 'role': role}
+        {'doc': doc_id, 'auth': id, 'field': int(field.tag), 'role': role}
     )
 
 def about(doc_id, field):
     global about_sql, about_cur
-    id = pers_id(field)
+    id = auth_id(field)
     if id is None:
         return
     about_cur.execute(
         about_sql, 
-        {'doc': doc_id, 'pers': id}
+        {'doc': doc_id, 'auth': id}
     )
 
 
@@ -306,8 +324,13 @@ def url(r, doc_values):
     if (r['003'] == None):
         print("NO URL ?")
         print(r)
-    else:
-        doc_values['url'] = r['003'].value()
+        return
+    doc_values['url'] = r['003'].value()
+    #  http://catalogue.bnf.fr/ark:/12148/cb15037139g
+    id = str(r['003']).split('ark:/12148/cb')[1]
+    id = id[0:8] # id verified, is unique
+    doc_values['id'] = int(id)
+    
     if (r['856'] != None and r['856']['u']):
         doc_values['gallica'] = r['856']['u']
 
@@ -449,6 +472,7 @@ def docs(marc_file):
         'desc': None,
 
         'byline': None,
+        'auth1': None,
 
         'address': None,
         'place': None,
@@ -497,16 +521,24 @@ def docs(marc_file):
             publisher(r, doc_values)
             # place after publisher, in case of more precise field
             place(r, doc_values)
+            byline(r, doc_values)
+            # get first author
+            if r['700'] is not None and r['700']['3'] is not None:
+                doc_values['auth1'] = auth_id(r['700'])
+            elif r['710'] is not None and r['710']['3'] is not None:
+                doc_values['auth1'] = auth_id(r['710'])
+
+
             # write doc record
             cur.execute(doc_sql, doc_values)
             doc_id = cur.lastrowid
-            # link to author
-            pers(r, doc_id)
+            # link to authors
+            auth_links(r, doc_id)
 
 
 
 def main() -> int:
-    global about_cur, con, contrib_cur, pers_cur
+    global about_cur, con, contrib_cur, auth_cur
     parser = argparse.ArgumentParser(
         description='Crawl a folder of marc file to generate an sqlite base',
         formatter_class=argparse.RawTextHelpFormatter
@@ -515,11 +547,9 @@ def main() -> int:
     help='Sqlite database to generate')
 
     args = parser.parse_args()
-    # tmp, copy file to keep pers
-
     db_file = args.cataviz_db[0]
     con = bnfmarc.connect(db_file)
-    pers_cur = con.cursor()
+    auth_cur = con.cursor()
     contrib_cur = con.cursor()
     about_cur = con.cursor()
     marc_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data/')

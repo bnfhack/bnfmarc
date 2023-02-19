@@ -14,10 +14,17 @@ CREATE TABLE doc (
     -- BNF-Livres/P174* https://api.bnf.fr/notices-bibliographiques-de-la-bibliographie-nationale-francaise
     -- ftp://PRODUIT_RETRO:b9rZ2As7@pef.bnf.fr/PRODUIT_RETRO/BNF-Livres/BNF-Livres_2021/BNF-Livres_2021_Unimarc_UTF8/P174*.UTF8
     -- biblio ref
-    byline          TEXT,  -- for a bibliographic ref
-    year         INTEGER,  -- publication year, 100, 210$d
+    id           INTEGER,  -- from 003
     title  TEXT NOT NULL,  -- uniform title 500$a, if (lang != 'fre') note 300$a, title proper 200$a
     desc            TEXT,  -- long title, concat 200
+    year         INTEGER,  -- publication year, 100, 210$d
+    -- resp
+    byline          TEXT,  -- for a bibliographic ref
+    authors      INTEGER,  -- count of author
+    auth1        INTEGER,  -- id of first author
+    type1        INTEGER,  -- type of first author (pers or corp)
+    gender1      INTEGER,  -- gender of first author
+    order1       INTEGER,  -- first, second… title for auth1
     -- editorial
     address         TEXT,  -- 210$r editorial address
     place           TEXT,  -- 210$a publication place 
@@ -39,89 +46,93 @@ CREATE TABLE doc (
     file   TEXT NOT NULL,  -- source File
     url    TEXT NOT NULL,  -- url catalog, 003
     gallica         TEXT,  -- url, 856$a
-    id           INTEGER,  -- rowid auto
     PRIMARY KEY(id ASC)
 );
 
+CREATE INDEX doc_auth ON doc(auth1, year);
 CREATE INDEX doc_clement ON doc(year, clement);
 CREATE INDEX doc_clement2 ON doc(clement, year);
 CREATE INDEX doc_format ON doc(year, format, pages);
+CREATE INDEX doc_gender ON doc(year, gender1);
 CREATE INDEX doc_lang ON doc(year, lang);
+CREATE INDEX doc_order ON doc(year, order1);
 CREATE INDEX doc_pages ON doc(year, pages);
-CREATE INDEX doc_publisher ON doc(year, publisher_group);
-CREATE INDEX doc_publisher2 ON doc(publisher_group, year);
 CREATE INDEX doc_place ON doc(year, place_group);
 CREATE INDEX doc_place2 ON doc(place_group, year);
 CREATE INDEX doc_place3 ON doc(year, place_like);
 CREATE INDEX doc_place4 ON doc(place_like, year);
-CREATE INDEX doc_translation ON doc(year, translation);
-CREATE INDEX doc_type ON doc(type, year);
-CREATE INDEX doc_year ON doc(year, type);
+CREATE INDEX doc_publisher ON doc(year, publisher_group);
+CREATE INDEX doc_publisher2 ON doc(publisher_group, year);
+CREATE INDEX doc_type ON doc(type1, year);
+CREATE INDEX doc_type2 ON doc(year, type1, gender1);
 
 
 CREATE TABLE contrib (
     doc         INTEGER NOT NULL,
-    pers        INTEGER NOT NULL,
+    auth        INTEGER NOT NULL,
     field       INTEGER NOT NULL,
     role        INTEGER NOT NULL,
-
-    year        INTEGER, -- redundant with doc
-    birthyear   INTEGER, -- redundant with pers, track dates error
-    type        INTEGER, -- code for kind of contrib
+    -- redundancies
+    type        INTEGER, -- code for contrib, infered from field & role 
+    year        INTEGER, -- redundant with doc.year
+    birthyear   INTEGER, -- redundant with auth, track dates error
     id          INTEGER, -- rowid auto
     PRIMARY KEY(id ASC)
 );
 
 CREATE INDEX contrib_role  ON contrib(role);
 CREATE INDEX contrib_field ON contrib(field, role);
-CREATE INDEX contrib_pers ON contrib(pers, year, type);
+CREATE INDEX contrib_auth ON contrib(auth, year, type);
+CREATE INDEX contrib_doc ON contrib(doc);
 
 CREATE TABLE about (
     doc         INTEGER NOT NULL,
-    pers        INTEGER NOT NULL,
+    auth        INTEGER NOT NULL,
     year        INTEGER, -- copied from doc, for plot perfs
     id          INTEGER, -- rowid auto
     PRIMARY KEY(id ASC)
 );
 
 CREATE INDEX about_doc  ON about(doc);
-CREATE INDEX about_pers ON about(pers, year);
+CREATE INDEX about_auth ON about(auth, year);
 
 
-CREATE TABLE pers (
+CREATE TABLE auth (
     -- UniMARC BnF autorités
     -- doc https://www.bnf.fr/sites/default/files/2019-01/UNIMARC%28A%29_2018_conversion.pdf
     -- https://api.bnf.fr/notices-dautorite-personnes-collectivites-oeuvres-lieux-noms-communs-de-bnf-catalogue-general
     -- ftp://PRODUIT_RETRO:b9rZ2As7@pef.bnf.fr/PRODUIT_RETRO/Pcts/Pcts_2021/Pcts_2021_Unimarc_UTF8/P1486_*.UTF8
-    name        TEXT NOT NULL, -- auth200$a
-    given       TEXT,          -- auth200$b
-    gender      INTEGER,       -- auth120$b inferred from given
-    role        TEXT,          -- auth200$c
-    deform      TEXT NOT NULL, -- lower case with no accents, for search
 
+    id             INTEGER, -- auth#003, doc#7**$3
+    type  INTEGER NOT NULL, -- 1=pers, 2=corp
+    name     TEXT NOT NULL, -- auth#200$a ; auth#210$a, auth#210$b 
+    role              TEXT, -- auth200$c ; auth210$c
+    note              BLOB, -- auth#300$a information about author
 
-    birthyear   INTEGER,       -- birth year: auth200$f, auth103$a
-    birthplace  TEXT,          -- birth place
-    deathyear   INTEGER,       -- death year: auth200$f, auth103$a
-    deathplace  TEXT,          -- death place
-    note        BLOB,          -- information about author
+    deform   TEXT NOT NULL, -- lower case with no accents, for search
 
-    generation  INTEGER,       -- a date composinf birtyear or doc1
-    docs        INTEGER,       -- doc count as first author
-    doc1        INTEGER,       -- date of first doc
-    age1        INTEGER,       -- age at first doc
-    age         INTEGER,       -- age at death (for demography)
+    -- 
+    docs           INTEGER, -- doc count as first author
+    doc1           INTEGER, -- date of first doc
 
-    file        TEXT,          -- source File from auth marc, or NULL from doc
-    url         TEXT,          -- url catalog, auth#003, or NULL
-    nb          INT NOT NULL UNIQUE, -- doc700$3, auth#003
-    id          INTEGER,       -- rowid auto
+    -- pers infos
+    given             TEXT, -- auth#200$b
+    gender         INTEGER, -- auth#120$b or inferred from given
+    birthyear      INTEGER, -- birth year: auth#200$f, auth#103$a
+    deathyear      INTEGER, -- death year: auth#200$f, auth#103$a
+    birthplace        TEXT, -- birth place
+    deathplace        TEXT, -- death place
+    age            INTEGER, -- death - birth
+    generation     INTEGER, -- a date, birtyear or doc1
+
+    file              TEXT, -- source File from auth marc, or NULL from doc
+    url               TEXT, -- url catalog, auth#003, or NULL
     PRIMARY KEY(id ASC)
 );
 
-CREATE INDEX pers_given ON pers(given);
-CREATE INDEX pers_name ON pers(name);
-CREATE INDEX pers_deform ON pers(deform, generation);
-CREATE INDEX pers_docs ON pers(docs DESC, deform);
-CREATE INDEX pers_doc1 ON pers(doc1, gender);
+CREATE INDEX auth_given ON auth(given);
+CREATE INDEX auth_name ON auth(name);
+CREATE INDEX auth_deform ON auth(deform, generation);
+CREATE INDEX auth_docs ON auth(docs DESC, deform);
+CREATE INDEX auth_doc1 ON auth(doc1, gender);
 
