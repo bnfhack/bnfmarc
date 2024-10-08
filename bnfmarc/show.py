@@ -11,7 +11,7 @@ import sys
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description='Crawl a folder of marc file to generate an sqlite base',
+        description='Show records from a Marc file',
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument('marc_file', nargs=1,

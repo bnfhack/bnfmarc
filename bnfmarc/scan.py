@@ -12,7 +12,7 @@ import sys
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description='Crawl a folder of marc file to generate an sqlite base',
+        description='Scan a marc file',
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument('marc_file', nargs=1,
@@ -26,14 +26,10 @@ def main() -> int:
             force_utf8=True
         )
         for r in reader:
-            fields = r.get_fields('608')
-            if fields is None or len(fields) == 0:
+            url = r['003'].value()
+            if (url != 'http://catalogue.bnf.fr/ark:/12148/cb30047888b'):
                 continue
-            i = 0
-            for f in fields:
-                i = i + 1
-                
-
+            print(r)
 
 
 if __name__ == '__main__':

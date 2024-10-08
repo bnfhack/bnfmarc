@@ -1,0 +1,11 @@
+--2023-02-20 11:48:52--  https://data.cerl.org/thesaurus/_sru?operation=searchRetrieve
+Resolving data.cerl.org (data.cerl.org)... 195.37.138.14
+Connecting to data.cerl.org (data.cerl.org)|195.37.138.14|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 771 [application/xml]
+Saving to: 'cerl_placenames.xml'
+
+cerl_placenames.xml                  0%[                                                               ]       0  --.-KB/s               cerl_placenames.xml                100%[==============================================================>]     771  --.-KB/s    in 0s      
+
+2023-02-20 11:48:53 (34.7 MB/s) - 'cerl_placenames.xml' saved [771/771]
+
