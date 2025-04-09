@@ -7,7 +7,7 @@ Code policy PEP8 https://www.python.org/dev/peps/pep-0008/
 
 
 """
-Load authority records, especially, authons.
+Load authority records, especially, authors.
 Doc: https://www.bnf.fr/sites/default/files/2019-01/UNIMARC%28A%29_2018_conversion.pdf
 Data : https://api.bnf.fr/notices-dautorite-authonnes-collectivites-oeuvres-lieux-noms-communs-de-bnf-catalogue-general
 ftp://PRODUIT_RETRO:b9rZ2As7@pef.bnf.fr/PRODUIT_RETRO/Pcts/Pcts_2021/Pcts_2021_Unimarc_UTF8/P1486_*.UTF8
@@ -86,16 +86,16 @@ def byline(doc_file):
 
 def auth_indoc(cur, field, type=1):
     global auth_cache, auth_row
-    if (field['3'] is None):
+    if (field.get('3') is None):
         # ~10 cases found
         return
     # found 3 cases with nb repetition
-    id = int(field['3'][0:8])
+    id = int(field.get('3')[0:8])
     if id in auth_cache:
         # already written
         return
     # a link to id only is possible
-    if field['a'] is None:
+    if field.get('a') is None:
         return
     # clean record
     for key in auth_row:
@@ -107,7 +107,7 @@ def auth_indoc(cur, field, type=1):
         pers_names(field, auth_row)
         auth_row['gender'] = gender_given(auth_row['given'])
         # extract dates
-        dateline(field['f'], auth_row)
+        dateline(field.get('f'), auth_row)
     elif type == 2:
         corp_name(field, auth_row)
     # keep id
@@ -152,55 +152,55 @@ def auths(marc_file):
         for r in reader:
             if (r is None): # 2 founds, forget
                 continue
-            if (r['003'] is None): # never found
+            if (r.get('003') is None): # never found
                 continue
             # nonify data to write to sqlite
             for key in auth_row:
                 auth_row[key] = None
 
             auth_row['file'] = os.path.basename(marc_file)
-            auth_row['url'] = str(r['003'].value().strip())
+            auth_row['url'] = str(r.get('003').value().strip())
             #  http://catalogue.bnf.fr/ark:/12148/cb15037139g
-            id = str(r['003']).split('ark:/12148/cb')[1]
+            id = str(r.get('003')).split('ark:/12148/cb')[1]
             id = id[0:8] # id verified, is unique
             auth_row['id'] = int(id)
             # informative note
-            if (r['300'] is not None and r['300']['a'] is not None):
-                auth_row['note'] = str(r['300']['a'].strip())
-            if (r['200'] is not None): # a pers
-                if (r['200']['a'] is None): # 1 found with no name
+            if (r.get('300') is not None and r.get('300').get('a') is not None):
+                auth_row['note'] = str(r.get('300').get('a').strip())
+            if (r.get('200') is not None): # a pers
+                if (r.get('200').get('a') is None): # 1 found with no name
                     continue
                 auth_row['type'] = 1
                 # get names from field
-                pers_names(r['200'], auth_row)
+                pers_names(r.get('200'), auth_row)
                 pers_dates(r, auth_row)
 
-                if (r['301'] is not None):
-                    if (r['301']['a'] is not None):
-                         auth_row['birthplace'] = str(r['301']['a'].strip())
-                    if (r['301']['b'] is not None):
-                         auth_row['deathplace'] = str(r['301']['b'].strip())
+                if (r.get('301') is not None):
+                    if (r.get('301').get('a') is not None):
+                         auth_row['birthplace'] = str(r.get('301').get('a').strip())
+                    if (r.get('301').get('b') is not None):
+                         auth_row['deathplace'] = str(r.get('301').get('b').strip())
                 gender(r, auth_row)
                 # keep id in mem
                 auth_cache[auth_row['id']] = True
                 # write a authon
                 cur.execute(auth_sql, auth_row)
 
-            if (r['210'] is not None): # a corp
+            if (r.get('210') is not None): # a corp
                 auth_row['type'] = 2
-                corp_name(r['210'], auth_row)
+                corp_name(r.get('210'), auth_row)
                 continue
             else:
                 continue
 
 def corp_name(field, auth_row):
-    if field['a'] is None:
+    if field.get('a') is None:
         return
-    name =  field['a'].strip()
-    if field['b'] is not None:
-        name = name + ', ' + field['b'].strip()
-    if (field['c'] is not None):
-        auth_row['role'] = field['c'].strip()
+    name =  field.get('a').strip()
+    if field.get('b') is not None:
+        name = name + ', ' + field.get('b').strip()
+    if (field.get('c') is not None):
+        auth_row['role'] = field.get('c').strip()
     auth_row['name'] = name
     auth_row['deform'] = bnfmarc.deform(name)
 
@@ -211,32 +211,32 @@ def pers_names(field, auth_row):
     Field = auth#200 or doc#700
 
     """
-    if field['a'] is None:
+    if field.get('a') is None:
         return
-    auth_row['name'] = field['a'].strip()
+    auth_row['name'] = field.get('a').strip()
     deform = auth_row['name']
         
-    if (field['b'] is not None):
-        auth_row['given'] = field['b'].strip()
+    if (field.get('b') is not None):
+        auth_row['given'] = field.get('b').strip()
         deform = deform + ", " + auth_row['given']
 
     # kings, emperors
-    if (field['d'] is not None):
-        auth_row['name'] = auth_row['name'] + ' ' + field['d'].strip()
-        deform = deform + " " + field['d'].strip()
+    if (field.get('d') is not None):
+        auth_row['name'] = auth_row['name'] + ' ' + field.get('d').strip()
+        deform = deform + " " + field.get('d').strip()
 
     # for search, low case without diacritics
     auth_row['deform'] = bnfmarc.deform(deform)
 
-    if (field['c'] is not None):
-        auth_row['role'] = field['c'].strip()
+    if (field.get('c') is not None):
+        auth_row['role'] = field.get('c').strip()
 
 def gender(r, auth_row):
-    if (r['120'] is not None and r['120']['a'] is not None):
-        if r['120']['a'] == 'b':
+    if (r.get('120') is not None and r.get('120').get('a') is not None):
+        if r.get('120').get('a') == 'b':
             auth_row['gender'] = 1
             return
-        elif r['120']['a'] == 'a':
+        elif r.get('120').get('a') == 'a':
             auth_row['gender'] = 2
             return
     auth_row['gender'] = gender_given(auth_row['given'])
@@ -254,10 +254,10 @@ def dateline(dateline, auth_row):
     sign = 1
     if dateline.find('av.') > -1:
         sign = -1
-    res = re.search('^[^\-\d]*(\d\d\d\d)', dateline)
+    res = re.search(r'^[^\-\d]*(\d\d\d\d)', dateline)
     if res is not None:
         auth_row['birthyear'] = sign * int(res.group(1))
-    res = re.search('\-[^\d]*(\d\d\d\d)', dateline)
+    res = re.search(r'\-[^\d]*(\d\d\d\d)', dateline)
     if res is not None:
         auth_row['deathyear'] =  sign * int(res.group(1))
     # check age at death
@@ -280,15 +280,15 @@ def age(auth_row):
 
 def pers_dates(r, auth_row):
     # reord dateline
-    dateline(r['200']['f'], auth_row)
+    dateline(r.get('200').get('f'), auth_row)
     # good job done, bye
     if auth_row['age'] is not None:
         return
     # nothing better to find    
-    if r['103'] is None or r['103']['a'] is None:
+    if r.get('103') is None or r.get('103').get('a') is None:
         return
     # try better ?    
-    line = r['103']['a']
+    line = r.get('103').get('a')
     # birth
     birthyear = line[0:5].strip()
     if re.search(r'^\-?[\d ]+$', birthyear) is not None:

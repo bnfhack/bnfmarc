@@ -44,42 +44,42 @@ year_max = 2020
 def phys(r, doc_values):
     """Get physical informations. """
     phys = None
-    if (r['215'] != None):
-        phys = str(r['215'])
+    if (r.get('215') != None):
+        phys = str(r.get('215'))
     else:
-        phys = str(r['210'])
+        phys = str(r.get('210'))
 
-    found = re.search(r"(\d+)[ ]*p\.", phys, re.IGNORECASE)
+    found = re.search(r"(\d+)[ ]*p\.", phys, flags=re.IGNORECASE)
     if (found != None):
         pages = int(found.group(1))
         if (pages > 9999):
             pages = 1000 # error 
         doc_values['pages'] = pages
     if (doc_values['pages'] == None):
-        found = re.search(r"pièce|placard", phys, re.IGNORECASE)
+        found = re.search(r"pièce|placard", phys, flags=re.IGNORECASE)
         if (found != None):
             doc_values['pages'] = 1
     # format
     # space error: 12 juin 1782, in-fol.
-    found = re.search(r"In[ \-]*(\d+)", phys, re.IGNORECASE)
+    found = re.search(r"In[ \-]*(\d+)", phys, flags=re.IGNORECASE)
     if (found != None):
         doc_values['format'] = found.group(1)
         return
-    found = re.search(r"in-fol", phys, re.IGNORECASE)
+    found = re.search(r"in-fol", phys, flags=re.IGNORECASE)
     if (found != None):
         doc_values['format'] = 2
         return
-    found = re.search(r"gr[\. ]+fol[\. ]?", phys, re.IGNORECASE)
+    found = re.search(r"gr[\. ]+fol[\. ]?", phys, flags=re.IGNORECASE)
     if (found != None):
         doc_values['format'] = 1
         # placard, affiche ? ou presse ?
         return
     # 8°
-    found = re.search(r"(\d+)°", phys, re.IGNORECASE)
+    found = re.search(r"(\d+)°", phys, flags=re.IGNORECASE)
     if (found != None):
         doc_values['format'] = int(found.group(1))
         return
-    found = re.search(r"(\d+) *cm", phys, re.IGNORECASE)
+    found = re.search(r"(\d+) *cm", phys, flags=re.IGNORECASE)
     if (found != None):
         cm = int(found.group(1))
         if (cm < 10):
@@ -114,11 +114,11 @@ RES FOL-T29-4
     for f in fields:
         i = i + 1
         cote =  None
-        if (f['a'] is not None):
-            cote = f['a']
+        if (f.get('a') is not None):
+            cote = f.get('a')
             print(cote)
-        elif (f['5'] is not None):
-            cote = re.sub(r"(FR-\d{9}):([A-Z]+ )?", '', f['5'])
+        elif (f.get('5') is not None):
+            cote = re.sub(r"(FR-\d{9}):([A-Z]+ )?", '', f.get('5'))
         if cote is None:
             continue
         found = re.search(r"((?P<format>[^\-]+)-)?(?P<clement>[A-Z][^ \-]*)(\-\d+| PIECE)", cote)
@@ -138,7 +138,7 @@ RES FOL-T29-4
 
 
     for f in r.get_fields('930'):
-        found = re.search(r"(FR-\d{9}):(.*)", f['5'])
+        found = re.search(r"(FR-\d{9}):(.*)", f.get('5'))
         if (found == None):
             # never arrive, all docs from FR(ench) BnF
             return None
@@ -157,11 +157,11 @@ def byline(r, doc_values):
     authors = []
     # strip field without a name
     for field in r.get_fields('700'):
-        if field['a'] is None:
+        if field.get('a') is None:
             continue
         authors.append(field)
     for field in r.get_fields('710'):
-        if field['a'] is None:
+        if field.get('a') is None:
             continue
         authors.append(field)
     count = len(authors)
@@ -172,7 +172,7 @@ def byline(r, doc_values):
     elif count == 2:
         doc_values['byline'] = authors[0]['a'] + " & " + authors[1]['a']
     else:
-        doc_values['byline'] = authors[0]['a'] + ", " + authors[1]['a'] + "… (" + count + ")"
+        doc_values['byline'] = authors[0]['a'] + ", " + authors[1]['a'] + "… (" + str(count) + ")"
 
 
 def auth_links(r, doc_id):
@@ -198,10 +198,10 @@ def auth_links(r, doc_id):
 """ Old when nb <> id
 def auth_id(field):
     global auth_cache, auth_cur
-    if (field['3'] is None):
+    if (field.get('3') is None):
         # ~10 cases found
         return None
-    nb = int(field['3'][0:8])
+    nb = int(field.get('3')[0:8])
     if (nb in auth_cache):
         return auth_cache[nb]
 
@@ -220,10 +220,10 @@ def auth_id(field):
 """
 
 def auth_id(field):
-    if (field['3'] is None):
+    if (field.get('3') is None):
         # ~10 cases found
         return None
-    id = int(field['3'][0:8])
+    id = int(field.get('3')[0:8])
     return id
 
 def contrib(doc_id, field):
@@ -232,10 +232,10 @@ def contrib(doc_id, field):
     if id is None:
         return
     # sometimes no explicit function, set to author
-    if field['4'] is None:
+    if field.get('4') is None:
         role = 70
     else:
-        role = int(field['4'])
+        role = int(field.get('4'))
     contrib_cur.execute(
         contrib_sql, 
         {'doc': doc_id, 'auth': id, 'field': int(field.tag), 'role': role}
@@ -256,16 +256,16 @@ def about(doc_id, field):
 def type(r, doc_values):
     """Get rdacontent type"""
     doc_values['type'] == None
-    if (r['181'] != None):
+    if (r.get('181') != None):
         for f in r.get_fields('181'):
-            if (f['2'] != 'rdacontent'):
+            if (f.get('2') != 'rdacontent'):
                 continue
-            doc_values['type'] = f['c']
+            doc_values['type'] = f.get('c')
             if (doc_values['type'] != None):
                 return
     # never arrive, kept for memory
     # 200, fully covering
-    type = r['200']['b']
+    type = r.get('200').get('b')
     if (type == 'Texte imprimé'):
         doc_values['type'] == 'txt'
     elif (type == 'Image fixe'):
@@ -274,32 +274,32 @@ def type(r, doc_values):
         doc_values['type'] == 'ntm'
 
 def lang(r, doc_values):
-    if (r['101'] == None or r['101']['a'] == None):
+    if (r.get('101') == None or r.get('101').get('a') == None):
         # http://catalogue.bnf.fr/ark:/12148/cb43650693f
         return
-    doc_values['lang'] = r['101']['a']
-    doc_values['translation'] = r['101'].indicator1
-    if (r['101']['c'] == None):
-        if (r['101'].indicator1 == 1):
+    doc_values['lang'] = r.get('101').get('a')
+    doc_values['translation'] = r.get('101').indicator1
+    if (r.get('101').get('c') == None):
+        if (r.get('101').indicator1 == 1):
             # ????
             print(r)
         return
-    doc_values['translation'] = r['101']['c']
+    doc_values['translation'] = r.get('101').get('c')
 
 
 def title(r, doc_values):
     """Build title """
     title = None
     desc = []
-    if (r['500'] is not None and r['500']['a'] is not None):
-        title = r['500']['a']
-        if (r['200'] is not None and r['200']['a'] is not None):
-            desc.append(str(r['200']['a']))
-    elif (r['200'] is None):
+    if (r.get('500') is not None and r.get('500').get('a') is not None):
+        title = r.get('500').get('a')
+        if (r.get('200') is not None and r.get('200').get('a') is not None):
+            desc.append(str(r.get('200').get('a')))
+    elif (r.get('200') is None):
         doc_values['title'] = "[Sans titre]"
         return
-    elif (r['200']['a'] is not None):
-        title = r['200']['a']
+    elif (r.get('200').get('a') is not None):
+        title = r.get('200').get('a')
     else: # No title ?
         doc_values['title'] = "[Sans titre]"
         return
@@ -309,39 +309,39 @@ def title(r, doc_values):
     doc_values['title'] = title
     
     # long title
-    if (r['200']['e'] is not None):
-        desc.append(str(r['200']['e']))
-    if (r['200']['h'] is not None):
-        desc.append(str(r['200']['h']))
-    if (r['200']['i'] is not None):
-        desc.append(str(r['200']['i']))
+    if (r.get('200').get('e') is not None):
+        desc.append(str(r.get('200').get('e')))
+    if (r.get('200').get('h') is not None):
+        desc.append(str(r.get('200').get('h')))
+    if (r.get('200').get('i') is not None):
+        desc.append(str(r.get('200').get('i')))
     if len(desc) > 0:
         desc = ", ".join(desc)
         desc = re.sub(r'[@]', '', desc).strip()
         doc_values['desc'] = desc
 
 def url(r, doc_values):
-    if (r['003'] == None):
+    if (r.get('003') == None):
         print("NO URL ?")
         print(r)
         return
-    doc_values['url'] = r['003'].value()
+    doc_values['url'] = r.get('003').value()
     #  http://catalogue.bnf.fr/ark:/12148/cb15037139g
-    id = str(r['003']).split('ark:/12148/cb')[1]
+    id = str(r.get('003')).split('ark:/12148/cb')[1]
     id = id[0:8] # id verified, is unique
     doc_values['id'] = int(id)
     
-    if (r['856'] != None and r['856']['u']):
-        doc_values['gallica'] = r['856']['u']
+    if (r.get('856') != None and r.get('856').get('u')):
+        doc_values['gallica'] = r.get('856').get('u')
 
 def address(r, doc_values):
     """Parse address line"""
-    if r['210'] is None or r['210']['r'] is None:
+    if r.get('210') is None or r.get('210').get('r') is None:
         return
-    doc_values['address'] = r['210']['r']
+    doc_values['address'] = r.get('210').get('r')
     # Halae Magdeburgicae : typis Orphanotrophei, 1715
     # [Paris, Louis Sevestre, 1715]
-    address = r['210']['r'].strip(' ()[].,:;')
+    address = r.get('210').get('r').strip(' ()[].,:;')
     members = re.split(r" *[,:;] *", address)
     if len(members) == 1:
         doc_values['publisher'] = members[0].strip()
@@ -349,7 +349,7 @@ def address(r, doc_values):
         doc_values['place'] = members[0].strip()
         doc_values['publisher'] = members[1].strip()
         if len(members) > 2:
-            found = re.search(r"(\d\d\d\d)", members[2], re.IGNORECASE)
+            found = re.search(r"(\d\d\d\d)", members[2], flags=re.IGNORECASE)
             if found is not None:
                 doc_values['year'] = str_year(found.group(1))
 
@@ -357,8 +357,8 @@ def address(r, doc_values):
 def publisher(r, doc_values):
     # if found in address
     publisher = doc_values['publisher']
-    if r['210'] is not None and r['210']['c'] is not None:
-        publisher = r['210']['c'].strip()
+    if r.get('210') is not None and r.get('210').get('c') is not None:
+        publisher = r.get('210').get('c').strip()
     # nothing found
     if not publisher:
         return
@@ -376,12 +376,12 @@ def publisher(r, doc_values):
 # find a place (after publisher and address line parsing)
 def place(r, doc_values):
     place = None
-    if (r['620'] is not None and r['620']['d'] is not None):
-        place = r['620']['d']
-    elif (r['214'] is not None and r['214']['a'] is not None):
-        place = r['214']['a']
-    elif (r['210'] is not None and r['210']['a'] is not None):
-        place = r['210']['a']
+    if (r.get('620') is not None and r.get('620').get('d') is not None):
+        place = r.get('620').get('d')
+    elif (r.get('214') is not None and r.get('214').get('a') is not None):
+        place = r.get('214').get('a')
+    elif (r.get('210') is not None and r.get('210').get('a') is not None):
+        place = r.get('210').get('a')
     elif doc_values['place'] is not None:
         # found with address or publisher parsing
         place = doc_values['place']
@@ -395,7 +395,7 @@ def place(r, doc_values):
 
     # "Paris,", "[Paris]" 
     place = place.strip(' ()[].,:;')
-    place = re.sub( r"^(À|A|En|In|In the|'s|T'|Te) ", '', place, re.IGNORECASE)
+    place = re.sub( r"^(À|A|En|In|In the|'s|T'|Te) ", '', place, flags=re.IGNORECASE)
     # Madrid, impr. de A. Sanz
     if ',' in place:
         list = place.split(',')
@@ -405,7 +405,7 @@ def place(r, doc_values):
     # Amsterdam ; et Paris
     # Dresden und Leipzig
     # Londres et Paris
-    place = re.sub( r"[  ]?(et|und|;|,).*$", '', place, re.IGNORECASE)
+    place = re.sub( r"[  ]?(et|und|;|,).*$", '', place, flags=re.IGNORECASE)
     place = place.strip()
     if not place:
         return
@@ -414,30 +414,30 @@ def place(r, doc_values):
 
 
 def country(r, doc_values):
-    if (r['102'] != None and r['102']['a'] != None):
-        doc_values['country'] = r['102']['a']
+    if (r.get('102') != None and r.get('102').get('a') != None):
+        doc_values['country'] = r.get('102').get('a')
     # most of old records have no national bib country
     # post work may be done 
 
 
 def year(r, doc_values):
-    str = r['100'].value()[9:13]
+    str = r.get('100').value()[9:13]
     year = str_year(str)
     if (year != None):
         doc_values['year'] = year
         return
     f = None
-    if (r['214'] != None):
-        f = r['214']
-    elif (r['210'] != None):
-        f = r['210']
+    if (r.get('214') != None):
+        f = r.get('214')
+    elif (r.get('210') != None):
+        f = r.get('210')
     else: # no other field for date
         return
     year = None
-    if (f['d'] != None):
-        year = f['d']
-    elif (f['r'] != None):
-        year = f['r']
+    if (f.get('d') != None):
+        year = f.get('d')
+    elif (f.get('r') != None):
+        year = f.get('r')
     elif doc_values['year'] != None:
         year = doc_values['year']
     else:
@@ -508,7 +508,7 @@ def docs(marc_file):
             for key in doc_values:
                 doc_values[key] = None
             doc_values['file'] = file
-            doc_values['url'] = str(r['003'].value().strip())
+            doc_values['url'] = str(r.get('003').value().strip())
             # doc_values['marc'] = str(r)
             url(r, doc_values)
             title(r, doc_values)
@@ -523,10 +523,10 @@ def docs(marc_file):
             place(r, doc_values)
             byline(r, doc_values)
             # get first author
-            if r['700'] is not None and r['700']['3'] is not None:
-                doc_values['auth1'] = auth_id(r['700'])
-            elif r['710'] is not None and r['710']['3'] is not None:
-                doc_values['auth1'] = auth_id(r['710'])
+            if r.get('700') is not None and r.get('700').get('3') is not None:
+                doc_values['auth1'] = auth_id(r.get('700'))
+            elif r.get('710') is not None and r.get('710').get('3') is not None:
+                doc_values['auth1'] = auth_id(r.get('710'))
 
 
             # write doc record
