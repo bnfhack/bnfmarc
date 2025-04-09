@@ -38,7 +38,7 @@ about_sql = "INSERT INTO about (" + ", ".join(about_cols) + ") VALUES (:" + ", :
 
 
 year_min = 1400
-year_max = 2020
+year_max = 2030
 
 
 def phys(r, doc_values):

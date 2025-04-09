@@ -1,4 +1,3 @@
-BEGIN;
 -- type of contribution
 UPDATE contrib SET type = NULL;
 -- writes
@@ -44,7 +43,5 @@ UPDATE doc SET
     type1=(SELECT type FROM auth WHERE auth1=auth.id ),
     gender1=(SELECT gender FROM auth WHERE auth1=auth.id )
 ;
-COMMIT;
-
-VACUUM;
+-- VACUUM;
 PRAGMA optimize;
