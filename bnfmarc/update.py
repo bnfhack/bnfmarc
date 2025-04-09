@@ -47,17 +47,20 @@ def doc_order():
 
 
 def main() -> int:
-    global con
     parser = argparse.ArgumentParser(
-        description='Loop on rows to correct and update',
+        description='apply update script after auths and docs insert',
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument('cataviz_db', nargs=1,
     help='Sqlite database to generate')
     args = parser.parse_args()
-    con = bnfmarc.connect(args.cataviz_db[0])
-    doc_order()
-    con.commit()
+    db_file = args.cataviz_db[0]
+    con = bnfmarc.connect(db_file)
+    cur = con.cursor()
+    sql_file = os.path.join(os.path.dirname(__file__), 'update.sql')
+    with open(sql_file, 'r') as file:
+        sql = file.read()
+    cur.executescript(sql)
 
 if __name__ == '__main__':
     sys.exit(main())
