@@ -25,6 +25,7 @@ CREATE TABLE doc (
     type1        INTEGER,  -- type of first author (pers or corp)
     gender1      INTEGER,  -- gender of first author
     order1       INTEGER,  -- first, second… title for auth1
+    hume1       INTEGER,  -- first=1, anthume=2, posthume=3 for auth1
     -- editorial
     address         TEXT,  -- 210$r editorial address
     place           TEXT,  -- 210$a publication place 
@@ -56,6 +57,7 @@ CREATE INDEX doc_format ON doc(year, format, pages);
 CREATE INDEX doc_gender ON doc(year, gender1);
 CREATE INDEX doc_lang ON doc(year, lang);
 CREATE INDEX doc_order ON doc(year, order1);
+CREATE INDEX doc_hume ON doc(year, hume1);
 CREATE INDEX doc_pages ON doc(year, pages);
 CREATE INDEX doc_place ON doc(year, place_group);
 CREATE INDEX doc_place2 ON doc(place_group, year);
